@@ -4,8 +4,7 @@ const { Plugin, PluginSettingTab, Setting, requestUrl, MarkdownView } = require(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SECRET_SERVICE = 'ai-buddy';
-const SECRET_ACCOUNT = 'api-key';
+const SECRET_KEY = 'ai-buddy-api-key';
 
 const DEFAULT_SETTINGS = {
     apiProvider: 'claude',
@@ -1083,11 +1082,11 @@ class AiBuddyPlugin extends Plugin {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 
         // Load API key from Obsidian secret storage
-        this._apiKey = await this.app.secretStorage.getPassword(SECRET_SERVICE, SECRET_ACCOUNT) || '';
+        this._apiKey = await this.app.secretStorage.getPassword(SECRET_KEY) || '';
 
         // Migrate: if an old apiKey is sitting in data.json, move it to secret storage
         if (saved.apiKey) {
-            await this.app.secretStorage.setPassword(SECRET_SERVICE, SECRET_ACCOUNT, saved.apiKey);
+            await this.app.secretStorage.setPassword(SECRET_KEY, saved.apiKey);
             this._apiKey = saved.apiKey;
             delete this.settings.apiKey;
             await this.saveData(this.settings);
@@ -1101,9 +1100,9 @@ class AiBuddyPlugin extends Plugin {
     async saveApiKey(key) {
         this._apiKey = key;
         if (key) {
-            await this.app.secretStorage.setPassword(SECRET_SERVICE, SECRET_ACCOUNT, key);
+            await this.app.secretStorage.setPassword(SECRET_KEY, key);
         } else {
-            await this.app.secretStorage.deletePassword(SECRET_SERVICE, SECRET_ACCOUNT);
+            await this.app.secretStorage.removePassword(SECRET_KEY);
         }
     }
 }

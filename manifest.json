@@ -2,7 +2,7 @@
   "id": "ai-buddy",
   "name": "AI Buddy",
   "version": "1.0.0",
-  "minAppVersion": "1.11.4",
+  "minAppVersion": "1.10.0",
   "description": "A Clippy-style AI assistant that lives in the corner of your vault.",
   "author": "CordycepDev",
   "authorUrl": "https://github.com/CordycepDev",

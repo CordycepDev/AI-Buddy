@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = {
     proactiveTips: true,
     tipIntervalMinutes: 8,
     tipPrompt: `Give a short, insightful observation or question about the note. Be specific — reference actual content.`,
-    chatDirection: 'below',          // 'above' | 'below'
+    chatDirection: 'above',           // 'above' | 'below'
     showNameTag: true,               // show/hide name below avatar
     avatarPath: '',                  // vault-relative path or URL to custom avatar image (GIF/PNG/etc), empty = default SVG
     gifSpeed: 1.0,                   // GIF playback speed multiplier (0.25–4×)
@@ -1063,6 +1063,7 @@ class AiBuddyPlugin extends Plugin {
             this.chatMessages.push({ role: 'assistant', content: text });
         }
 
+        this.ensureChatFits();
         this.updateContextIndicator();
         this.chatEl?.addClass('is-open');
         this.buddyEl?.addClass('chat-open');
@@ -1070,9 +1071,76 @@ class AiBuddyPlugin extends Plugin {
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
+    // Make sure the chat panel doesn't overflow the viewport.
+    // If it would, flip direction and/or nudge Chip away from edges.
+    ensureChatFits() {
+        if (!this.buddyEl || !this.chatEl) return;
+
+        const container    = this.buddyEl.parentElement;
+        const containerRect = container.getBoundingClientRect();
+        const buddyRect     = this.buddyEl.getBoundingClientRect();
+        const chatW = 320;   // chat panel width (from CSS)
+        const chatH = 460;   // chat max-height (from CSS)
+        const gap   = 10;    // gap between avatar and chat
+
+        // ── Vertical: pick best direction ──
+        const spaceAbove = buddyRect.top    - containerRect.top;
+        const spaceBelow = containerRect.bottom - buddyRect.bottom;
+        const neededV    = chatH + gap;
+
+        let dir = this.settings.chatDirection;
+        if (dir === 'above' && spaceAbove < neededV && spaceBelow > spaceAbove) {
+            dir = 'below';
+        } else if (dir === 'below' && spaceBelow < neededV && spaceAbove > spaceBelow) {
+            dir = 'above';
+        }
+        // Apply runtime direction (don't save — this is a temporary adjustment)
+        this.buddyEl.removeClass('chat-direction-above', 'chat-direction-below');
+        this.buddyEl.addClass(`chat-direction-${dir}`);
+
+        // If there's still not enough room in the chosen direction, nudge Chip
+        const spaceChosen = dir === 'above' ? spaceAbove : spaceBelow;
+        if (spaceChosen < neededV) {
+            const nudge = neededV - spaceChosen;
+            if (dir === 'above') {
+                // Push Chip down (increase bottom distance from edge)
+                this.buddyEl.style.top    = `${Math.max(0, parseInt(this.buddyEl.style.top || '0') + nudge)}px`;
+                this.buddyEl.style.bottom = 'auto';
+            } else {
+                // Push Chip up
+                const currentBottom = containerRect.height - (buddyRect.bottom - containerRect.top);
+                this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
+                this.buddyEl.style.top    = 'auto';
+            }
+        }
+
+        // ── Horizontal: keep chat from overflowing right edge ──
+        const buddyRight = containerRect.right - buddyRect.right;
+        const chatOverflowRight = chatW - (buddyRect.width + buddyRight);
+        if (chatOverflowRight > 0) {
+            // Chat would spill off the right — nudge Chip left
+            const currentLeft = buddyRect.left - containerRect.left;
+            this.buddyEl.style.left  = `${Math.max(0, currentLeft - chatOverflowRight)}px`;
+            this.buddyEl.style.right = 'auto';
+        }
+
+        // ── Horizontal: keep chat from overflowing left edge ──
+        // Chat is right-aligned to Chip, so its left edge = buddyRight - chatW + buddyWidth
+        const chatLeftEdge = buddyRect.left - containerRect.left + buddyRect.width - chatW;
+        if (chatLeftEdge < 0) {
+            // Chat would spill off the left — nudge Chip right
+            const currentLeft = buddyRect.left - containerRect.left;
+            this.buddyEl.style.left  = `${currentLeft - chatLeftEdge}px`;
+            this.buddyEl.style.right = 'auto';
+        }
+    }
+
     closeChat() {
         this.chatEl?.removeClass('is-open');
         this.buddyEl?.removeClass('chat-open');
+        // Restore preferred direction and position after any nudging
+        this.applyDirectionClass();
+        this.updateBuddyPosition();
     }
 
     // ─── Settings ──────────────────────────────────────────────────────────────

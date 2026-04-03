@@ -428,17 +428,17 @@
   color: var(--text-normal);
 }
 
-/* Message action buttons */
+/* Message action buttons (inside bubble) */
 .ai-buddy-msg-actions {
   display: flex;
-  gap: 2px;
-  align-self: flex-end;
+  gap: 3px;
+  justify-content: flex-end;
+  margin-top: 4px;
   opacity: 0;
   transition: opacity 0.15s ease;
-  margin-bottom: 4px;
 }
 
-.ai-buddy-message:hover .ai-buddy-msg-actions {
+.ai-buddy-msg-body:hover .ai-buddy-msg-actions {
   opacity: 1;
 }
 

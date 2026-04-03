@@ -378,12 +378,42 @@
 .ai-buddy-msg-body {
   padding: 8px 12px;
   max-width: 82%;
-  white-space: pre-wrap;
   word-break: break-word;
   font-weight: 450;
+  user-select: text;
+  cursor: text;
 }
 
+/* Rendered markdown inside assistant bubbles */
+.ai-buddy-msg-assistant .ai-buddy-msg-body p {
+  margin: 0 0 6px;
+}
+.ai-buddy-msg-assistant .ai-buddy-msg-body p:last-child {
+  margin-bottom: 0;
+}
+.ai-buddy-msg-assistant .ai-buddy-msg-body ul,
+.ai-buddy-msg-assistant .ai-buddy-msg-body ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.ai-buddy-msg-assistant .ai-buddy-msg-body code {
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+}
+.ai-buddy-msg-assistant .ai-buddy-msg-body pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--background-modifier-border);
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+/* User messages stay plain text */
 .ai-buddy-msg-user .ai-buddy-msg-body {
+  white-space: pre-wrap;
   background: linear-gradient(135deg, #7c6af7, #a78bfa);
   color: white;
   border-radius: 16px 16px 4px 16px;
@@ -395,6 +425,37 @@
   background: var(--background-secondary);
   border: 1.5px solid var(--background-modifier-border);
   border-radius: 16px 16px 16px 4px;
+  color: var(--text-normal);
+}
+
+/* Message action buttons */
+.ai-buddy-msg-actions {
+  display: flex;
+  gap: 2px;
+  align-self: flex-end;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  margin-bottom: 4px;
+}
+
+.ai-buddy-message:hover .ai-buddy-msg-actions {
+  opacity: 1;
+}
+
+.ai-buddy-msg-action-btn {
+  background: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 5px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+
+.ai-buddy-msg-action-btn:hover {
+  background: var(--background-secondary);
   color: var(--text-normal);
 }
 

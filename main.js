@@ -1,6 +1,6 @@
 'use strict';
 
-const { Plugin, PluginSettingTab, Setting, requestUrl, MarkdownView } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, requestUrl, MarkdownView, MarkdownRenderer, Component } = require('obsidian');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -405,6 +405,8 @@ class AiBuddyPlugin extends Plugin {
         this._pipMoveTimer = null;
         this._gifPlayer?.destroy();
         this._gifPlayer = null;
+        this._renderComponents?.forEach(c => c.unload());
+        this._renderComponents = [];
         this.clearQuoteWatcher();
         this.stopTrackingQuote();
         this.removeArrowIndicator();
@@ -947,6 +949,10 @@ class AiBuddyPlugin extends Plugin {
         if (!this.messagesEl) return;
         this.messagesEl.empty();
 
+        // Clean up previous render components
+        this._renderComponents?.forEach(c => c.unload());
+        this._renderComponents = [];
+
         if (this.chatMessages.length === 0) {
             const welcome = this.messagesEl.createEl('div', { cls: 'ai-buddy-welcome' });
             welcome.createEl('div', { cls: 'ai-buddy-welcome-gem', text: '✦' });
@@ -957,7 +963,45 @@ class AiBuddyPlugin extends Plugin {
         for (const msg of this.chatMessages) {
             const msgEl = this.messagesEl.createEl('div', { cls: `ai-buddy-message ai-buddy-msg-${msg.role}` });
             if (msg.role === 'assistant') msgEl.createEl('span', { cls: 'ai-buddy-msg-gem', text: '✦' });
-            msgEl.createEl('span', { cls: 'ai-buddy-msg-body' }).textContent = msg.content;
+
+            const bodyEl = msgEl.createEl('div', { cls: 'ai-buddy-msg-body' });
+
+            if (msg.role === 'assistant') {
+                // Render markdown for assistant messages
+                const comp = new Component();
+                comp.load();
+                this._renderComponents.push(comp);
+                const sourcePath = this.app.workspace.getActiveFile()?.path || '';
+                MarkdownRenderer.render(this.app, msg.content, bodyEl, sourcePath, comp);
+
+                // Action buttons (copy / insert at cursor)
+                const actions = msgEl.createEl('div', { cls: 'ai-buddy-msg-actions' });
+                const copyBtn = actions.createEl('button', {
+                    cls: 'ai-buddy-msg-action-btn',
+                    attr: { title: 'Copy message' },
+                    text: '📋',
+                });
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(msg.content);
+                    copyBtn.textContent = '✓';
+                    setTimeout(() => copyBtn.textContent = '📋', 1500);
+                });
+                const insertBtn = actions.createEl('button', {
+                    cls: 'ai-buddy-msg-action-btn',
+                    attr: { title: 'Insert at cursor' },
+                    text: '⎀',
+                });
+                insertBtn.addEventListener('click', () => {
+                    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (view?.editor) {
+                        view.editor.replaceSelection(msg.content);
+                        insertBtn.textContent = '✓';
+                        setTimeout(() => insertBtn.textContent = '⎀', 1500);
+                    }
+                });
+            } else {
+                bodyEl.textContent = msg.content;
+            }
         }
 
         setTimeout(() => { if (this.messagesEl) this.messagesEl.scrollTop = this.messagesEl.scrollHeight; }, 30);

@@ -1081,12 +1081,12 @@ class AiBuddyPlugin extends Plugin {
         const saved = await this.loadData() || {};
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 
-        // Load API key from Obsidian secret storage
-        this._apiKey = await this.app.secretStorage.getPassword(SECRET_KEY) || '';
+        // Load API key from Obsidian secret storage (sync API, since 1.11.4)
+        this._apiKey = this.app.secretStorage.getSecret(SECRET_KEY) || '';
 
         // Migrate: if an old apiKey is sitting in data.json, move it to secret storage
         if (saved.apiKey) {
-            await this.app.secretStorage.setPassword(SECRET_KEY, saved.apiKey);
+            this.app.secretStorage.setSecret(SECRET_KEY, saved.apiKey);
             this._apiKey = saved.apiKey;
             delete this.settings.apiKey;
             await this.saveData(this.settings);
@@ -1097,12 +1097,13 @@ class AiBuddyPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
-    async saveApiKey(key) {
+    saveApiKey(key) {
         this._apiKey = key;
         if (key) {
-            await this.app.secretStorage.setPassword(SECRET_KEY, key);
+            this.app.secretStorage.setSecret(SECRET_KEY, key);
         } else {
-            await this.app.secretStorage.removePassword(SECRET_KEY);
+            // Clear by setting empty — no removeSecret in the API
+            this.app.secretStorage.setSecret(SECRET_KEY, '');
         }
     }
 }
@@ -1263,7 +1264,7 @@ class AiBuddySettingTab extends PluginSettingTab {
                 t.inputEl.type = 'password';
                 t.setValue(this.plugin._apiKey)
                     .setPlaceholder(this.plugin.settings.apiProvider === 'claude' ? 'sk-ant-...' : 'sk-...')
-                    .onChange(async v => { await this.plugin.saveApiKey(v); });
+                    .onChange(v => { this.plugin.saveApiKey(v); });
             });
 
         new Setting(containerEl)

@@ -1130,19 +1130,26 @@ class AiBuddyPlugin extends Plugin {
         const dir    = this.settings.chatDirection;
         const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
 
+        const buddyH = buddyRect.height;
+
         if (dir === 'below') {
             const spaceBelow = containerRect.bottom - buddyRect.bottom;
             if (spaceBelow < needed) {
-                // Push Chip up
-                this.buddyEl.style.bottom = `${currentBottom + (needed - spaceBelow)}px`;
-                this.buddyEl.style.top    = 'auto';
+                // Push Chip up — subtract buddyH so Chip's top aligns, not its bottom
+                const nudge = needed - spaceBelow - buddyH;
+                if (nudge > 0) {
+                    this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
+                    this.buddyEl.style.top    = 'auto';
+                }
             }
         } else {
             const spaceAbove = buddyRect.top - containerRect.top;
             if (spaceAbove < needed) {
-                // Push Chip down
-                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - (needed - spaceAbove))}px`;
-                this.buddyEl.style.top    = 'auto';
+                const nudge = needed - spaceAbove - buddyH;
+                if (nudge > 0) {
+                    this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
+                    this.buddyEl.style.top    = 'auto';
+                }
             }
         }
     }

@@ -1996,7 +1996,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         const themeSetting = new Setting(containerEl)
             .setName('Accent color')
-            .setDesc('Color palette for borders, highlights, and accents. Some visual styles use fixed colors that override this.');
+            .setDesc('Color palette that drives each visual style. Try Sunset + Terminal for an amber CRT, Forest + Terminal for the classic Matrix look, Rose + Neon for pink cyberpunk, or any palette with Paper/Cozy for pastel variations.');
         themeSetting.addDropdown(d => {
             for (const [key, t] of Object.entries(THEMES)) d.addOption(key, t.label);
             d.setValue(this.plugin.settings.theme || 'purple')

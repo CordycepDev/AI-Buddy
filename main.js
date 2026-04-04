@@ -379,7 +379,9 @@ class AiBuddyPlugin extends Plugin {
         const ro = new ResizeObserver(() => this.updateBuddyPosition());
         ro.observe(this.app.workspace.containerEl);
         const rightSplit = this.app.workspace.rightSplit;
+        const leftSplit  = this.app.workspace.leftSplit;
         if (rightSplit?.containerEl) ro.observe(rightSplit.containerEl);
+        if (leftSplit?.containerEl)  ro.observe(leftSplit.containerEl);
         this.register(() => ro.disconnect());
 
         this.showBubble(`Hi! I'm ${this.settings.buddyName} — click me!`, 4000);
@@ -446,20 +448,26 @@ class AiBuddyPlugin extends Plugin {
         if (!this.buddyEl) return;
 
         const rightSplit = this.app.workspace.rightSplit;
-        const sidebarW = (rightSplit && !rightSplit.collapsed)
-            ? rightSplit.containerEl.offsetWidth : 0;
+        const leftSplit  = this.app.workspace.leftSplit;
+        const sidebarR = (rightSplit && !rightSplit.collapsed) ? rightSplit.containerEl.offsetWidth : 0;
+        const sidebarL = (leftSplit  && !leftSplit.collapsed)  ? leftSplit.containerEl.offsetWidth  : 0;
+        const containerW = this.buddyEl.parentElement.offsetWidth;
+        const chipW      = this.buddyEl.offsetWidth;
 
+        let rightVal;
         if (this.settings.savedPosition) {
-            // User dragged Pip — honour their choice, but still respect sidebar.
-            // fromRight is stored relative to the note pane right edge.
             const { fromRight, fromBottom } = this.settings.savedPosition;
-            this.buddyEl.style.right  = `${fromRight + sidebarW}px`;
+            rightVal = fromRight + sidebarR;
             this.buddyEl.style.bottom = `${fromBottom}px`;
         } else {
-            // Default corner
-            this.buddyEl.style.right  = `${sidebarW + 20}px`;
+            rightVal = sidebarR + 20;
             this.buddyEl.style.bottom = '44px';
         }
+
+        // Clamp so Chip stays between left sidebar and right sidebar
+        const maxRight = containerW - sidebarL - chipW;
+        rightVal = Math.max(sidebarR, Math.min(rightVal, maxRight));
+        this.buddyEl.style.right = `${rightVal}px`;
 
         // Always use right/bottom (never left/top) so resize is free.
         this.buddyEl.style.left = 'auto';
@@ -1118,38 +1126,47 @@ class AiBuddyPlugin extends Plugin {
     // Keep the user's preferred chat direction but nudge Chip vertically so the
     // chat panel stays on-screen. Only touches the CSS `bottom` value — never
     // left/right, so sidebar-aware positioning from updateBuddyPosition() is preserved.
+    // Dynamically position the chat so it stays fully on-screen.
+    // 1. Pick horizontal alignment (left or right) based on available space
+    // 2. Nudge Chip vertically if the chat would overflow
     ensureChatFits() {
         if (!this.buddyEl || !this.chatEl) return;
 
         const container     = this.buddyEl.parentElement;
         const containerRect = container.getBoundingClientRect();
         const buddyRect     = this.buddyEl.getBoundingClientRect();
-        const chatH  = 460;  // CSS max-height of the chat panel
+        const chatW  = 320;
+        const chatH  = 460;
         const gap    = 10;
         const needed = chatH + gap;
-        const dir    = this.settings.chatDirection;
-        const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
-
         const buddyH = buddyRect.height;
+        const dir    = this.settings.chatDirection;
 
-        if (dir === 'below') {
-            const spaceBelow = containerRect.bottom - buddyRect.bottom;
-            if (spaceBelow < needed) {
-                // Push Chip up — subtract buddyH so Chip's top aligns, not its bottom
-                const nudge = needed - spaceBelow - buddyH + 15;
-                if (nudge > 0) {
-                    this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
-                    this.buddyEl.style.top    = 'auto';
-                }
+        // ── Horizontal: align chat to whichever side has room ──
+        // "right-align" = chat's right edge matches Chip's right edge, extends left
+        // "left-align"  = chat's left edge matches Chip's left edge, extends right
+        const chipFromLeft = buddyRect.right - containerRect.left;  // Chip's right edge from container left
+        const alignRight   = chipFromLeft >= chatW;
+
+        this.buddyEl.removeClass('chat-align-left', 'chat-align-right');
+        this.buddyEl.addClass(alignRight ? 'chat-align-right' : 'chat-align-left');
+
+        // ── Vertical: nudge Chip so chat fits in the preferred direction ──
+        const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
+        const spaceAbove    = buddyRect.top    - containerRect.top;
+        const spaceBelow    = containerRect.bottom - buddyRect.bottom;
+
+        if (dir === 'below' && spaceBelow < needed) {
+            const nudge = needed - spaceBelow - buddyH + 15;
+            if (nudge > 0) {
+                this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
+                this.buddyEl.style.top    = 'auto';
             }
-        } else {
-            const spaceAbove = buddyRect.top - containerRect.top;
-            if (spaceAbove < needed) {
-                const nudge = needed - spaceAbove - buddyH;
-                if (nudge > 0) {
-                    this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
-                    this.buddyEl.style.top    = 'auto';
-                }
+        } else if (dir === 'above' && spaceAbove < needed) {
+            const nudge = needed - spaceAbove - buddyH + 15;
+            if (nudge > 0) {
+                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
+                this.buddyEl.style.top    = 'auto';
             }
         }
     }
@@ -1157,6 +1174,7 @@ class AiBuddyPlugin extends Plugin {
     closeChat() {
         this.chatEl?.removeClass('is-open');
         this.buddyEl?.removeClass('chat-open');
+        this.buddyEl?.removeClass('chat-align-left', 'chat-align-right');
         // Restore position and direction after nudging
         this.applyDirectionClass();
         this.updateBuddyPosition();

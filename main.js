@@ -2069,50 +2069,38 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         const emotionDesc = containerEl.createEl('p', {
             cls: 'setting-item-description',
-            text: `Configure what ${this.plugin.settings.buddyName} says and looks like for each emotion. Messages: separate alternates with a pipe ( | ), use {name} for the buddy's name. Avatars: leave empty to reuse the default. Click Preview to test.`,
+            text: `Messages: separate alternates with a pipe ( | ), use {name} for the buddy's name. Avatars: leave empty to reuse default. ▶ to preview.`,
         });
-        emotionDesc.style.marginBottom = '8px';
+        emotionDesc.style.marginBottom = '6px';
 
         for (const [key, def] of Object.entries(DEFAULT_EMOTIONS)) {
-            // Section header for this emotion
-            containerEl.createEl('div', {
-                cls: 'ai-buddy-emotion-header',
-                text: def.label,
+            const row = new Setting(containerEl).setName(def.label);
+            row.settingEl.addClass('ai-buddy-emotion-row');
+            row.addText(t => {
+                t.inputEl.addClass('ai-buddy-emotion-msg-input');
+                t.setPlaceholder('message (pipe-separated)')
+                    .setValue(this.plugin.settings.emotionMessages?.[key] || '')
+                    .onChange(async v => {
+                        this.plugin.settings.emotionMessages = this.plugin.settings.emotionMessages || {};
+                        this.plugin.settings.emotionMessages[key] = v;
+                        await this.plugin.saveSettings();
+                    });
             });
-
-            // Message input + Preview button
-            new Setting(containerEl)
-                .setName('Message')
-                .setDesc(`Default: ${def.defaultMsg.replace(/\{name\}/g, this.plugin.settings.buddyName)}`)
-                .addText(t => {
-                    t.inputEl.addClass('ai-buddy-emotion-msg');
-                    t.setPlaceholder(def.defaultMsg)
-                        .setValue(this.plugin.settings.emotionMessages?.[key] || '')
-                        .onChange(async v => {
-                            this.plugin.settings.emotionMessages = this.plugin.settings.emotionMessages || {};
-                            this.plugin.settings.emotionMessages[key] = v;
-                            await this.plugin.saveSettings();
-                        });
-                })
-                .addButton(b => b
-                    .setButtonText('Preview')
-                    .onClick(() => this.plugin.triggerEmotion(key, { preview: true })));
-
-            // Avatar input
-            new Setting(containerEl)
-                .setName('Avatar')
-                .setDesc('Path, URL, or builtin: ref. Leave empty to reuse the default avatar.')
-                .addText(t => {
-                    t.inputEl.addClass('ai-buddy-emotion-msg');
-                    t.setPlaceholder('(reuses default)')
-                        .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
-                        .onChange(async v => {
-                            this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
-                            this.plugin.settings.emotionAvatars[key] = v.trim();
-                            this.plugin.settings.avatarPreset = 'custom';
-                            await this.plugin.saveSettings();
-                        });
-                });
+            row.addText(t => {
+                t.inputEl.addClass('ai-buddy-emotion-avatar-input');
+                t.setPlaceholder('avatar path')
+                    .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
+                    .onChange(async v => {
+                        this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
+                        this.plugin.settings.emotionAvatars[key] = v.trim();
+                        this.plugin.settings.avatarPreset = 'custom';
+                        await this.plugin.saveSettings();
+                    });
+            });
+            row.addButton(b => b
+                .setButtonText('▶')
+                .setTooltip('Preview this emotion')
+                .onClick(() => this.plugin.triggerEmotion(key, { preview: true })));
         }
 
         containerEl.createEl('h3', { text: 'AI Provider' });

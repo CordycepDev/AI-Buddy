@@ -650,14 +650,43 @@
   font-size: 12px;
 }
 
-.ai-buddy-emotion-header {
-  font-weight: 700;
-  font-size: 13px;
-  margin: 16px 0 2px;
-  padding: 4px 0 4px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  color: var(--text-normal);
-  letter-spacing: 0.02em;
+/* Compact emotion config rows: one line per emotion (name + msg + avatar + preview) */
+.ai-buddy-emotion-row {
+  padding: 6px 0;
+  border-top: none;
+  flex-wrap: wrap;
+}
+.ai-buddy-emotion-row .setting-item-info {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  min-width: 80px;
+}
+.ai-buddy-emotion-row .setting-item-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ai-buddy-emotion-row .setting-item-description { display: none; }
+.ai-buddy-emotion-row .setting-item-control {
+  flex: 1 1 auto;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.ai-buddy-emotion-msg-input {
+  flex: 2 1 0;
+  min-width: 120px;
+  font-size: 11px;
+  font-family: var(--font-monospace);
+}
+.ai-buddy-emotion-avatar-input {
+  flex: 1 1 0;
+  min-width: 80px;
+  font-size: 11px;
+  font-family: var(--font-monospace);
+}
+.ai-buddy-emotion-row button {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-size: 12px;
 }
 
 /* ═══════════════════════════════════════════════════════════════

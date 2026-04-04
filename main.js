@@ -1111,8 +1111,8 @@ class AiBuddyPlugin extends Plugin {
         this.chatEl?.addClass('is-open');
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
-        // Nudge after the chat has rendered so we can measure its actual size
-        requestAnimationFrame(() => this.ensureChatFits());
+        // Nudge after the CSS transition finishes so we can measure actual size
+        setTimeout(() => this.ensureChatFits(), 350);
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 

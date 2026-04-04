@@ -1115,52 +1115,35 @@ class AiBuddyPlugin extends Plugin {
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
-    // Keep the user's preferred chat direction but nudge Chip so the chat stays on-screen.
+    // Keep the user's preferred chat direction but nudge Chip vertically so the
+    // chat panel stays on-screen. Only touches the CSS `bottom` value — never
+    // left/right, so sidebar-aware positioning from updateBuddyPosition() is preserved.
     ensureChatFits() {
         if (!this.buddyEl || !this.chatEl) return;
 
         const container     = this.buddyEl.parentElement;
         const containerRect = container.getBoundingClientRect();
         const buddyRect     = this.buddyEl.getBoundingClientRect();
-        const chatH = 460;   // chat max-height (from CSS)
-        const chatW = 320;   // chat width (from CSS)
-        const gap   = 10;    // gap between avatar and chat
+        const chatH  = 460;  // chat max-height (from CSS)
+        const gap    = 10;   // gap between avatar and chat
         const needed = chatH + gap;
         const dir    = this.settings.chatDirection;
+        const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
 
-        // ── Vertical: nudge Chip so chat fits in the preferred direction ──
         if (dir === 'below') {
-            // Chat opens below — need room under Chip
             const spaceBelow = containerRect.bottom - buddyRect.bottom;
             if (spaceBelow < needed) {
-                // Push Chip up by increasing its bottom value
-                const nudge = needed - spaceBelow;
-                const currentBottom = containerRect.bottom - buddyRect.bottom;
-                this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
+                // Push Chip up
+                this.buddyEl.style.bottom = `${currentBottom + (needed - spaceBelow)}px`;
                 this.buddyEl.style.top    = 'auto';
-                this.buddyEl.style.left   = 'auto';
             }
         } else {
-            // Chat opens above — need room above Chip
             const spaceAbove = buddyRect.top - containerRect.top;
             if (spaceAbove < needed) {
-                // Push Chip down by decreasing its bottom value
-                const nudge = needed - spaceAbove;
-                const currentBottom = containerRect.bottom - buddyRect.bottom;
-                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
+                // Push Chip down
+                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - (needed - spaceAbove))}px`;
                 this.buddyEl.style.top    = 'auto';
-                this.buddyEl.style.left   = 'auto';
             }
-        }
-
-        // ── Horizontal: keep chat from overflowing left edge ──
-        // Chat is right-aligned to Chip, so its left edge = chipLeft + chipWidth - chatWidth
-        const updatedRect  = this.buddyEl.getBoundingClientRect();
-        const chatLeftEdge = updatedRect.left - containerRect.left + updatedRect.width - chatW;
-        if (chatLeftEdge < 0) {
-            const currentRight = containerRect.right - updatedRect.right;
-            this.buddyEl.style.right = `${Math.max(0, currentRight + chatLeftEdge)}px`;
-            this.buddyEl.style.left  = 'auto';
         }
     }
 

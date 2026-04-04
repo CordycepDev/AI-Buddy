@@ -533,7 +533,9 @@ class AiBuddyPlugin extends Plugin {
 
     // Render an avatar image into the avatar wrapper. Clears the previous
     // avatar and any running GIF player. Empty path falls back to the built-in SVG.
-    _renderAvatar(path) {
+    // `isEmotion=true` forces a minimum playback speed so emotion GIFs animate
+    // even when the user has paused the default/idle GIF via gifSpeed.
+    _renderAvatar(path, isEmotion = false) {
         const wrapper = this.avatarWrapperEl;
         if (!wrapper) return;
 
@@ -555,7 +557,11 @@ class AiBuddyPlugin extends Plugin {
         if (isGif) {
             const canvas = wrapper.createEl('canvas');
             canvas.style.cssText = 'width:64px;height:64px;border-radius:50%;';
-            this._gifPlayer = new GifPlayer(canvas, this.settings.gifSpeed ?? 1.0);
+            // Emotion GIFs always play (≥ 1×) so pausing the idle avatar
+            // doesn't silently freeze the angry/happy/etc animations too.
+            const userSpeed = this.settings.gifSpeed ?? 1.0;
+            const speed = isEmotion ? Math.max(1.0, userSpeed) : userSpeed;
+            this._gifPlayer = new GifPlayer(canvas, speed);
             this._gifPlayer.load(src, (url) => this._fetchGifData(url, path), () => {
                 // Fall back to built-in SVG on load failure
                 canvas.remove();
@@ -763,7 +769,7 @@ class AiBuddyPlugin extends Plugin {
         if (!hasEmotionAsset) this.buddyEl.addClass(`emotion-${key}`);
 
         // Swap avatar to emotion-specific art if provided
-        if (hasEmotionAsset) this._renderAvatar(emotionPath);
+        if (hasEmotionAsset) this._renderAvatar(emotionPath, true);
 
         // Show bubble unless explicitly silent or no message available
         if (msg && !opts.silent) {
@@ -1807,7 +1813,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('GIF playback speed')
-            .setDesc('Multiplier for animated GIF speed. 0 = paused, 1× = original, 2× = double speed.')
+            .setDesc('Speed for the default/idle avatar. 0 = paused, 1× = original, 2× = double. Emotion GIFs (angry, happy, etc.) always play at 1× or faster.')
             .addSlider(s => s
                 .setLimits(0, 2, 0.10)
                 .setValue(this.plugin.settings.gifSpeed ?? 1.0)

@@ -18,8 +18,46 @@ const DEFAULT_SETTINGS = {
     chatDirection: 'above',           // 'above' | 'below'
     showNameTag: true,               // show/hide name below avatar
     avatarPath: '',                  // vault-relative path or URL to custom avatar image (GIF/PNG/etc), empty = default SVG
-    gifSpeed: 1.0,                   // GIF playback speed multiplier (0.25–4×)
+    gifSpeed: 1.0,                   // GIF playback speed multiplier (0–2, 0 = paused)
     savedPosition: null,             // null = default corner; {fromRight, fromBottom} when dragged
+    theme: 'purple',                 // visual color theme (see THEMES below)
+    customFont: '',                  // font-family override for the buddy UI (empty = inherit)
+    emotionsEnabled: true,           // master toggle for personality/emotion reactions
+    emotionMessages: {},             // {emotionKey: "msg1|msg2|msg3"} user overrides; falls back to DEFAULT_EMOTIONS
+};
+
+// ─── Themes ───────────────────────────────────────────────────────────────────
+// Each theme defines color anchors. Chat/bubble backgrounds use Obsidian's
+// native vars so they adapt to light/dark automatically; our colors just need
+// to look good against both.
+
+const THEMES = {
+    purple:  { label: 'Purple (default)', primary: '124, 106, 247', light: '167, 139, 250', pale: '196, 184, 255', dark: '109, 40, 217' },
+    ocean:   { label: 'Ocean',            primary: '14, 165, 233',  light: '56, 189, 248',  pale: '125, 211, 252', dark: '3, 105, 161'   },
+    forest:  { label: 'Forest',           primary: '16, 185, 129',  light: '52, 211, 153',  pale: '110, 231, 183', dark: '5, 122, 85'    },
+    sunset:  { label: 'Sunset',           primary: '249, 115, 22',  light: '251, 146, 60',  pale: '253, 186, 116', dark: '194, 65, 12'   },
+    rose:    { label: 'Rose',             primary: '236, 72, 153',  light: '244, 114, 182', pale: '249, 168, 212', dark: '190, 24, 93'   },
+    crimson: { label: 'Crimson',          primary: '239, 68, 68',   light: '248, 113, 113', pale: '252, 165, 165', dark: '185, 28, 28'   },
+    cyber:   { label: 'Cyber',            primary: '6, 182, 212',   light: '34, 211, 238',  pale: '103, 232, 249', dark: '14, 116, 144'  },
+    candy:   { label: 'Candy',            primary: '217, 70, 239',  light: '232, 121, 249', pale: '240, 171, 252', dark: '162, 28, 175'  },
+    mono:    { label: 'Monochrome',       primary: '100, 116, 139', light: '148, 163, 184', pale: '203, 213, 225', dark: '51, 65, 85'    },
+    gold:    { label: 'Gold',             primary: '234, 179, 8',   light: '250, 204, 21',  pale: '253, 224, 71',  dark: '161, 98, 7'    },
+};
+
+// ─── Emotions ─────────────────────────────────────────────────────────────────
+// Each emotion has: default bubble messages (pipe-separated, one picked at
+// random) and a CSS class applied to the root for any visual flourish.
+// Triggers are wired in code — no AI calls.
+
+const DEFAULT_EMOTIONS = {
+    emerge:     { label: 'Emerge',      defaultMsg: `Hi! I'm {name} — click me! ✦|Hey there, I'm {name}!|{name} reporting for duty ✦` },
+    disappear:  { label: 'Disappear',   defaultMsg: `See you later!|Catch you next time ✦|Heading out — ping me anytime!` },
+    idle:       { label: 'Idle',        defaultMsg: `Still here whenever you need me ✦|Just hanging out...|Let me know if you need a hand!` },
+    lookAround: { label: 'Look around', defaultMsg: `👀|...hmm|*peeks around*|Anything interesting today?` },
+    happy:      { label: 'Happy',       defaultMsg: `🎉|Glad to help!|Nice!|Awesome ✦` },
+    angry:      { label: 'Angry',       defaultMsg: `Ugh, that didn't work 😤|Something broke — try again?|Grr, error!` },
+    disappoint: { label: 'Disappoint',  defaultMsg: `Oh... okay 😔|Maybe next time|Ignored again...` },
+    excited:    { label: 'Excited',     defaultMsg: `Ooh, something new! ✨|Let's gooo!|This looks fun! 🚀` },
 };
 
 const PROACTIVE_TIPS = [
@@ -77,7 +115,7 @@ class GifPlayer {
     constructor(canvas, speed = 1.0) {
         this.canvas  = canvas;
         this.ctx     = canvas.getContext('2d');
-        this.speed   = Math.max(0.1, speed);
+        this.speed   = Math.max(0, speed);
         this.frames  = [];
         this.idx     = 0;
         this._active = false;
@@ -102,6 +140,8 @@ class GifPlayer {
         if (!this._active || this.frames.length === 0) return;
         const frame = this.frames[this.idx];
         this.ctx.putImageData(frame.img, 0, 0);
+        // Speed 0 = paused: render current frame but don't schedule the next one
+        if (this.speed <= 0) { this._timer = null; return; }
         const delay = Math.max(20, frame.delay / this.speed);
         this._timer = setTimeout(() => {
             this.idx = (this.idx + 1) % this.frames.length;
@@ -109,7 +149,12 @@ class GifPlayer {
         }, delay);
     }
 
-    setSpeed(s) { this.speed = Math.max(0.1, s); }
+    setSpeed(s) {
+        const wasPaused = this.speed <= 0;
+        this.speed = Math.max(0, s);
+        // If resuming from paused state, kick the loop back into motion
+        if (wasPaused && this.speed > 0 && this._active && !this._timer) this._tick();
+    }
     destroy()   { this._active = false; clearTimeout(this._timer); this._timer = null; }
 
     // ── GIF89a parser ──────────────────────────────────────────────────────────
@@ -287,6 +332,15 @@ class AiBuddyPlugin extends Plugin {
             this._lastActivity = Date.now();
         }));
 
+        // Trigger excited when the user opens a different note
+        this.registerEvent(this.app.workspace.on('file-open', (file) => {
+            if (!file || !this.buddyEl) return;
+            if (this.chatEl?.hasClass('is-open')) return;
+            // Skip the initial file-open that fires on layout ready
+            if (!this._hasSeenFirstOpen) { this._hasSeenFirstOpen = true; return; }
+            this.triggerEmotion('excited', { duration: 2500, animationMs: 700 });
+        }));
+
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.showBuddy) this.createBuddy();
         });
@@ -306,6 +360,7 @@ class AiBuddyPlugin extends Plugin {
         // Root — just wraps the avatar; chat is absolutely positioned relative to it
         this.buddyEl = container.createEl('div', { cls: 'ai-buddy-root' });
         this.applyDirectionClass();
+        this.applyTheme();
 
         // Avatar section
         const avatarSection = this.buddyEl.createEl('div', { cls: 'ai-buddy-avatar-section' });
@@ -319,6 +374,8 @@ class AiBuddyPlugin extends Plugin {
         this.tipBtnEl = tipBtn;
         tipBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            this.registerBuddyInteraction();
+            this.triggerEmotion('happy', { silent: true, animationMs: 600 });
             this.showProactiveTip(true);
         });
 
@@ -385,7 +442,11 @@ class AiBuddyPlugin extends Plugin {
         if (leftSplit?.containerEl)  ro.observe(leftSplit.containerEl);
         this.register(() => ro.disconnect());
 
-        this.showBubble(`Hi! I'm ${this.settings.buddyName} — click me!`, 4000);
+        // Trigger emerge emotion (plays animation + shows greeting bubble)
+        this.triggerEmotion('emerge', { duration: 4000, animationMs: 600, force: true });
+
+        // Start idle/look-around watchers
+        this.startIdleWatcher();
     }
 
     // Fetch GIF bytes — uses requestUrl (bypasses CORS) for remote URLs,
@@ -402,8 +463,15 @@ class AiBuddyPlugin extends Plugin {
     removeBuddy() {
         clearTimeout(this.blinkTimer);
         clearTimeout(this.tipTimer);
+        clearTimeout(this._emotionTimer);
+        clearInterval(this._idleTimer);
+        clearInterval(this._lookAroundTimer);
         this.blinkTimer = null;
         this.tipTimer = null;
+        this._emotionTimer = null;
+        this._idleTimer = null;
+        this._lookAroundTimer = null;
+        this._isIdle = false;
         clearTimeout(this._pipMoveTimer);
         this._pipMoveTimer = null;
         this._gifPlayer?.destroy();
@@ -424,7 +492,9 @@ class AiBuddyPlugin extends Plugin {
         if (this.buddyEl) {
             this.settings.showBuddy = false;
             this.saveSettings();
-            this.removeBuddy();
+            // Play disappear animation first, then remove
+            this.triggerEmotion('disappear', { duration: 1200, animationMs: 400 });
+            setTimeout(() => this.removeBuddy(), 400);
         } else {
             this.settings.showBuddy = true;
             this.saveSettings();
@@ -436,6 +506,99 @@ class AiBuddyPlugin extends Plugin {
         if (!this.buddyEl) return;
         this.buddyEl.removeClass('chat-direction-above', 'chat-direction-below');
         this.buddyEl.addClass(`chat-direction-${this.settings.chatDirection}`);
+    }
+
+    applyTheme() {
+        if (!this.buddyEl) return;
+        const theme = THEMES[this.settings.theme] || THEMES.purple;
+        this.buddyEl.style.setProperty('--buddy-primary',       theme.primary);
+        this.buddyEl.style.setProperty('--buddy-primary-light', theme.light);
+        this.buddyEl.style.setProperty('--buddy-primary-pale',  theme.pale);
+        this.buddyEl.style.setProperty('--buddy-primary-dark',  theme.dark);
+        const font = (this.settings.customFont || '').trim();
+        this.buddyEl.style.setProperty('--buddy-font', font || 'inherit');
+    }
+
+    // ─── Emotions ──────────────────────────────────────────────────────────────
+
+    triggerEmotion(key, opts = {}) {
+        if (!this.buddyEl) return;
+        if (!DEFAULT_EMOTIONS[key]) return;
+        // Preview bypasses the master toggle so users can test from settings
+        if (!this.settings.emotionsEnabled && !opts.preview) return;
+
+        // Rate-limit: don't fire the same emotion more than once every 4s
+        // (force/preview bypass this)
+        this._lastEmotionTimes = this._lastEmotionTimes || {};
+        const now  = Date.now();
+        const last = this._lastEmotionTimes[key] || 0;
+        if (!opts.force && !opts.preview && now - last < 4000) return;
+        this._lastEmotionTimes[key] = now;
+
+        // Pick a message (user override or default); "" means silent
+        const custom = this.settings.emotionMessages?.[key];
+        const raw    = (custom !== undefined && custom !== null && custom !== '')
+            ? custom : DEFAULT_EMOTIONS[key].defaultMsg;
+        const msgs   = String(raw).split('|').map(s => s.trim()).filter(Boolean);
+        const msg    = msgs.length
+            ? msgs[Math.floor(Math.random() * msgs.length)].replace(/\{name\}/g, this.settings.buddyName)
+            : '';
+
+        // Reset animation class (force reflow so same-key retrigger works)
+        for (const k of Object.keys(DEFAULT_EMOTIONS)) this.buddyEl.removeClass(`emotion-${k}`);
+        void this.buddyEl.offsetWidth;
+        this.buddyEl.addClass(`emotion-${key}`);
+
+        // Show bubble unless explicitly silent or no message available
+        if (msg && !opts.silent) {
+            this.showBubble(msg, opts.duration ?? 3500);
+        }
+
+        clearTimeout(this._emotionTimer);
+        if (key === 'idle') {
+            this._isIdle = true;     // persistent state
+        } else {
+            // lookAround is part of idle behavior and shouldn't break idle state
+            if (key !== 'lookAround') this._isIdle = false;
+            const ms = opts.animationMs ?? 1800;
+            this._emotionTimer = setTimeout(() => {
+                this.buddyEl?.removeClass(`emotion-${key}`);
+                // If we're still idle, restore the idle animation
+                if (this._isIdle) this.buddyEl?.addClass('emotion-idle');
+            }, ms);
+        }
+    }
+
+    // Reset the idle watcher whenever the user interacts with the buddy
+    registerBuddyInteraction() {
+        this._lastInteraction = Date.now();
+        if (this._isIdle) {
+            this._isIdle = false;
+            this.buddyEl?.removeClass('emotion-idle');
+        }
+    }
+
+    startIdleWatcher() {
+        clearInterval(this._idleTimer);
+        clearInterval(this._lookAroundTimer);
+        this._lastInteraction = Date.now();
+        // Every 15s check if idle for > 60s; go idle silently
+        this._idleTimer = setInterval(() => {
+            if (!this.buddyEl || !this.settings.emotionsEnabled) return;
+            if (this.chatEl?.hasClass('is-open')) return;
+            const idleSecs = (Date.now() - (this._lastInteraction || 0)) / 1000;
+            if (idleSecs > 60 && !this._isIdle) {
+                this.triggerEmotion('idle', { silent: true, force: true });
+            }
+        }, 15000);
+        // While idle, occasionally look around (~every 50s, 50% chance)
+        this._lookAroundTimer = setInterval(() => {
+            if (!this.buddyEl || !this.settings.emotionsEnabled) return;
+            if (this.chatEl?.hasClass('is-open')) return;
+            if (this._isIdle && Math.random() < 0.5) {
+                this.triggerEmotion('lookAround', { duration: 2000, animationMs: 1700, force: true });
+            }
+        }, 50000);
     }
 
     // ─── Positioning ───────────────────────────────────────────────────────────
@@ -497,6 +660,7 @@ class AiBuddyPlugin extends Plugin {
             e.preventDefault();
             dragging  = true;
             dragMoved = false;
+            this.registerBuddyInteraction();
 
             // Cancel any in-progress move-to-text animation
             clearTimeout(this._pipMoveTimer);
@@ -551,6 +715,19 @@ class AiBuddyPlugin extends Plugin {
             if (!dragging) return;
             dragging = false;
             this.buddyEl?.removeClass('is-dragging');
+
+            // Track repeated drags — 3+ drags within 12s = rough handling, angry reaction
+            if (dragMoved) {
+                this._recentDrags = (this._recentDrags || []).filter(t => Date.now() - t < 12000);
+                this._recentDrags.push(Date.now());
+                if (this._recentDrags.length >= 3) {
+                    this.triggerEmotion('angry', { animationMs: 500, duration: 2500 });
+                    this._recentDrags = [];
+                } else if (this._recentDrags.length === 2 && Math.random() < 0.4) {
+                    // Occasional happy/excited on normal drag around
+                    this.triggerEmotion(Math.random() < 0.5 ? 'happy' : 'excited', { silent: true, animationMs: 600 });
+                }
+            }
 
             if (dragMoved && this.buddyEl) {
                 // Convert left/top back to fromRight/fromBottom so resize is free
@@ -611,7 +788,14 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl.addClass('bubble-visible');
         clearTimeout(this._bubbleTimer);
         if (duration > 0) {
-            this._bubbleTimer = setTimeout(() => this.buddyEl?.removeClass('bubble-visible'), duration);
+            this._bubbleTimer = setTimeout(() => {
+                this.buddyEl?.removeClass('bubble-visible');
+                // Auto-dismissed with a pending tip still unread → disappointed
+                if (this.pendingTip) {
+                    this.pendingTip = null;
+                    this.triggerEmotion('disappoint', { animationMs: 900, duration: 2800 });
+                }
+            }, duration);
         }
     }
 
@@ -1045,6 +1229,10 @@ class AiBuddyPlugin extends Plugin {
         }
 
         this.chatMessages.push({ role: 'user', content: text });
+        this._chatHadMessages = true;
+        this.registerBuddyInteraction();
+        // Longer messages feel more engaged → excited; short ones → happy
+        this.triggerEmotion(text.length > 60 ? 'excited' : 'happy', { silent: true, animationMs: 600 });
         this.isThinking = true;
         this.renderMessages();
 
@@ -1068,9 +1256,12 @@ class AiBuddyPlugin extends Plugin {
 
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: reply });
+            // Occasional happy reaction on successful reply (30% chance, silent)
+            if (Math.random() < 0.3) this.triggerEmotion('happy', { silent: true, animationMs: 600 });
         } catch (err) {
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: `Hmm, something went wrong: ${err.message}` });
+            this.triggerEmotion('angry', { silent: true, animationMs: 500 });
         }
 
         this.isThinking = false;
@@ -1128,6 +1319,12 @@ class AiBuddyPlugin extends Plugin {
 
     openChat() {
         this.hideBubble();
+        this.registerBuddyInteraction();
+        this._chatOpenedAt = Date.now();
+        this._chatHadMessages = false;
+
+        // Opening chat counts as engaging — trigger happy reaction (silent)
+        const wasPending = !!this.pendingTip;
 
         // If a tip was shown as a bubble, carry it into the chat history
         if (this.pendingTip) {
@@ -1142,6 +1339,7 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
         this.ensureChatFits();
+        this.triggerEmotion(wasPending ? 'excited' : 'happy', { silent: true, animationMs: 600 });
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
@@ -1212,12 +1410,29 @@ class AiBuddyPlugin extends Plugin {
     }
 
     closeChat() {
+        // Emotion reactions to how the chat was closed
+        const openedAt     = this._chatOpenedAt || 0;
+        const openDuration = Date.now() - openedAt;
+        const hadMessages  = !!this._chatHadMessages;
+
         this.chatEl?.removeClass('is-open');
         this.buddyEl?.removeClass('chat-open');
         this.buddyEl?.removeClass('chat-align-left', 'chat-align-right');
         // Restore position and direction after nudging
         this.applyDirectionClass();
         this.updateBuddyPosition();
+
+        if (openedAt > 0) {
+            if (!hadMessages && openDuration < 2000) {
+                // Opened and dismissed in <2s without saying anything → annoyed
+                this.triggerEmotion('angry', { animationMs: 500, duration: 2800 });
+            } else if (!hadMessages && openDuration >= 2000) {
+                // Opened, looked, left without asking → disappointed
+                this.triggerEmotion('disappoint', { animationMs: 900, duration: 2800 });
+            }
+        }
+        this._chatOpenedAt = 0;
+        this._chatHadMessages = false;
     }
 
     // ─── Settings ──────────────────────────────────────────────────────────────
@@ -1329,9 +1544,9 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('GIF playback speed')
-            .setDesc('Multiplier for animated GIF speed. 1× = original, 2× = double speed, 0.5× = half speed.')
+            .setDesc('Multiplier for animated GIF speed. 0 = paused, 1× = original, 2× = double speed.')
             .addSlider(s => s
-                .setLimits(0.25, 4, 0.25)
+                .setLimits(0, 2, 0.10)
                 .setValue(this.plugin.settings.gifSpeed ?? 1.0)
                 .setDynamicTooltip()
                 .onChange(async v => {
@@ -1351,6 +1566,34 @@ class AiBuddySettingTab extends PluginSettingTab {
                     this.plugin.settings.chatDirection = v;
                     await this.plugin.saveSettings();
                     this.plugin.applyDirectionClass();
+                }));
+
+        // ── Appearance ────────────────────────────────────────────
+        containerEl.createEl('h3', { text: 'Appearance' });
+
+        const themeSetting = new Setting(containerEl)
+            .setName('Color theme')
+            .setDesc('Pick a color palette for chat, bubble, and accents. Works in both light and dark mode.');
+        themeSetting.addDropdown(d => {
+            for (const [key, t] of Object.entries(THEMES)) d.addOption(key, t.label);
+            d.setValue(this.plugin.settings.theme || 'purple')
+                .onChange(async v => {
+                    this.plugin.settings.theme = v;
+                    await this.plugin.saveSettings();
+                    this.plugin.applyTheme();
+                });
+        });
+
+        new Setting(containerEl)
+            .setName('Custom font')
+            .setDesc('CSS font-family for buddy UI (e.g. "Comic Sans MS", "JetBrains Mono", "Inter"). Leave empty to use Obsidian default.')
+            .addText(t => t
+                .setPlaceholder('e.g. "JetBrains Mono", monospace')
+                .setValue(this.plugin.settings.customFont || '')
+                .onChange(async v => {
+                    this.plugin.settings.customFont = v;
+                    await this.plugin.saveSettings();
+                    this.plugin.applyTheme();
                 }));
 
         new Setting(containerEl)
@@ -1387,6 +1630,44 @@ class AiBuddySettingTab extends PluginSettingTab {
                     this.plugin.settings.tipIntervalMinutes = v;
                     await this.plugin.saveSettings();
                 }));
+
+        // ── Personality ─────────────────────────────────────────
+        containerEl.createEl('h3', { text: 'Personality' });
+
+        new Setting(containerEl)
+            .setName('Emotions enabled')
+            .setDesc(`Let ${this.plugin.settings.buddyName} react to events with animations and bubble messages.`)
+            .addToggle(t => t
+                .setValue(this.plugin.settings.emotionsEnabled ?? true)
+                .onChange(async v => {
+                    this.plugin.settings.emotionsEnabled = v;
+                    await this.plugin.saveSettings();
+                }));
+
+        const emotionDesc = containerEl.createEl('p', {
+            cls: 'setting-item-description',
+            text: `Customize the messages ${this.plugin.settings.buddyName} says for each emotion. Separate alternates with a pipe ( | ) — a random one is picked each time. Use {name} to insert the buddy's name. Leave empty to reset to default.`,
+        });
+        emotionDesc.style.marginBottom = '8px';
+
+        for (const [key, def] of Object.entries(DEFAULT_EMOTIONS)) {
+            const setting = new Setting(containerEl)
+                .setName(def.label)
+                .setDesc(`Default: ${def.defaultMsg.replace(/\{name\}/g, this.plugin.settings.buddyName)}`);
+            setting.addText(t => {
+                t.inputEl.addClass('ai-buddy-emotion-msg');
+                t.setPlaceholder(def.defaultMsg)
+                    .setValue(this.plugin.settings.emotionMessages?.[key] || '')
+                    .onChange(async v => {
+                        this.plugin.settings.emotionMessages = this.plugin.settings.emotionMessages || {};
+                        this.plugin.settings.emotionMessages[key] = v;
+                        await this.plugin.saveSettings();
+                    });
+            });
+            setting.addButton(b => b
+                .setButtonText('Preview')
+                .onClick(() => this.plugin.triggerEmotion(key, { preview: true })));
+        }
 
         containerEl.createEl('h3', { text: 'AI Provider' });
 

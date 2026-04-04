@@ -1111,8 +1111,7 @@ class AiBuddyPlugin extends Plugin {
         this.chatEl?.addClass('is-open');
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
-        // Nudge after the CSS transition finishes so we can measure actual size
-        setTimeout(() => this.ensureChatFits(), 350);
+        this.ensureChatFits();
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
@@ -1125,26 +1124,39 @@ class AiBuddyPlugin extends Plugin {
         const container     = this.buddyEl.parentElement;
         const containerRect = container.getBoundingClientRect();
         const buddyRect     = this.buddyEl.getBoundingClientRect();
-        const chatRect      = this.chatEl.getBoundingClientRect();
-        const chatH  = chatRect.height || 460;  // actual rendered height
-        const gap    = 10;
-        const needed = chatH + gap;
-        const dir    = this.settings.chatDirection;
+        const buddyH = buddyRect.height;
+        const chatMax = 460;  // CSS max-height of the chat panel
+        const gap     = 10;
+        const dir     = this.settings.chatDirection;
         const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
+        const maxNudge = 150; // don't move Chip more than 150px
 
         if (dir === 'below') {
             const spaceBelow = containerRect.bottom - buddyRect.bottom;
+            const needed = chatMax + gap;
             if (spaceBelow < needed) {
-                // Push Chip up
-                this.buddyEl.style.bottom = `${currentBottom + (needed - spaceBelow)}px`;
+                const deficit = needed - spaceBelow;
+                const nudge   = Math.min(deficit, maxNudge);
+                this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
                 this.buddyEl.style.top    = 'auto';
+                // Shrink chat to fit whatever space remains
+                const finalSpace = spaceBelow + nudge;
+                if (finalSpace < needed) {
+                    this.chatEl.style.maxHeight = `${Math.max(200, finalSpace - gap)}px`;
+                }
             }
         } else {
             const spaceAbove = buddyRect.top - containerRect.top;
+            const needed = chatMax + gap;
             if (spaceAbove < needed) {
-                // Push Chip down
-                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - (needed - spaceAbove))}px`;
+                const deficit = needed - spaceAbove;
+                const nudge   = Math.min(deficit, maxNudge);
+                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
                 this.buddyEl.style.top    = 'auto';
+                const finalSpace = spaceAbove + nudge;
+                if (finalSpace < needed) {
+                    this.chatEl.style.maxHeight = `${Math.max(200, finalSpace - gap)}px`;
+                }
             }
         }
     }
@@ -1152,7 +1164,8 @@ class AiBuddyPlugin extends Plugin {
     closeChat() {
         this.chatEl?.removeClass('is-open');
         this.buddyEl?.removeClass('chat-open');
-        // Restore preferred direction and position after any nudging
+        // Restore position, direction, and chat max-height after nudging
+        if (this.chatEl) this.chatEl.style.maxHeight = '';
         this.applyDirectionClass();
         this.updateBuddyPosition();
     }

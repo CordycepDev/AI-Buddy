@@ -57,6 +57,21 @@ const AVATAR_PRESETS = {
         bundled: false,
         paths:   {},
     },
+    chip: {
+        label:   'Chip (built-in)',
+        builtin: true,
+        paths: {
+            default:    '',                          // uses BUDDY_SVG with blink animation
+            emerge:     'builtin:chip/emerge',
+            disappear:  'builtin:chip/disappear',
+            idle:       '',                          // keep blink-enabled default during idle
+            lookAround: 'builtin:chip/lookAround',
+            happy:      'builtin:chip/happy',
+            angry:      'builtin:chip/angry',
+            disappoint: 'builtin:chip/disappoint',
+            excited:    'builtin:chip/excited',
+        },
+    },
     gemmy: {
         label:   'Gemmy (by ericaxu & Rigmarole)',
         bundled: true,
@@ -101,6 +116,68 @@ const PROACTIVE_TIPS = [
 ];
 
 // ─── SVG Avatar ───────────────────────────────────────────────────────────────
+
+// Reusable face parts for Chip SVG variants (positioned within the head: x=17-83, y=6-54)
+const CHIP_EYES = {
+    normal:  `<rect x="28" y="20" width="18" height="16" rx="8" fill="white"/><rect x="54" y="20" width="18" height="16" rx="8" fill="white"/><circle cx="37" cy="28" r="5" fill="#2d2d3a"/><circle cx="63" cy="28" r="5" fill="#2d2d3a"/><circle cx="39" cy="25.5" r="2" fill="white"/><circle cx="65" cy="25.5" r="2" fill="white"/>`,
+    wide:    `<rect x="26" y="17" width="22" height="22" rx="11" fill="white"/><rect x="52" y="17" width="22" height="22" rx="11" fill="white"/><circle cx="37" cy="28" r="6" fill="#2d2d3a"/><circle cx="63" cy="28" r="6" fill="#2d2d3a"/><circle cx="39" cy="25" r="2.5" fill="white"/><circle cx="65" cy="25" r="2.5" fill="white"/>`,
+    closed:  `<rect x="28" y="27" width="18" height="4" rx="2" fill="#2d2d3a"/><rect x="54" y="27" width="18" height="4" rx="2" fill="#2d2d3a"/>`,
+    squint:  `<path d="M 28 31 Q 37 22 46 31" stroke="#2d2d3a" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M 54 31 Q 63 22 72 31" stroke="#2d2d3a" stroke-width="3.5" fill="none" stroke-linecap="round"/>`,
+    angry:   `<rect x="28" y="23" width="18" height="13" rx="6.5" fill="white"/><rect x="54" y="23" width="18" height="13" rx="6.5" fill="white"/><circle cx="37" cy="30" r="4" fill="#2d2d3a"/><circle cx="63" cy="30" r="4" fill="#2d2d3a"/><path d="M 26 17 L 46 22" stroke="#2d2d3a" stroke-width="3.5" stroke-linecap="round"/><path d="M 74 17 L 54 22" stroke="#2d2d3a" stroke-width="3.5" stroke-linecap="round"/>`,
+    sad:     `<rect x="28" y="24" width="18" height="13" rx="6.5" fill="white"/><rect x="54" y="24" width="18" height="13" rx="6.5" fill="white"/><circle cx="37" cy="31" r="4" fill="#2d2d3a"/><circle cx="63" cy="31" r="4" fill="#2d2d3a"/><path d="M 28 18 L 46 24" stroke="#2d2d3a" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/><path d="M 72 18 L 54 24" stroke="#2d2d3a" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>`,
+    sideL:   `<rect x="28" y="20" width="18" height="16" rx="8" fill="white"/><rect x="54" y="20" width="18" height="16" rx="8" fill="white"/><circle cx="33" cy="28" r="5" fill="#2d2d3a"/><circle cx="59" cy="28" r="5" fill="#2d2d3a"/><circle cx="35" cy="25.5" r="2" fill="white"/><circle cx="61" cy="25.5" r="2" fill="white"/>`,
+    sparkle: `<rect x="26" y="17" width="22" height="22" rx="11" fill="white"/><rect x="52" y="17" width="22" height="22" rx="11" fill="white"/><polygon points="37,22 39,28 44,29 39,30 37,36 35,30 30,29 35,28" fill="#2d2d3a"/><polygon points="63,22 65,28 70,29 65,30 63,36 61,30 56,29 61,28" fill="#2d2d3a"/>`,
+};
+const CHIP_MOUTHS = {
+    smile:      `<path d="M 36 42 Q 50 52 64 42" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+    bigSmile:   `<path d="M 32 40 Q 50 58 68 40" stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    smallSmile: `<path d="M 40 43 Q 50 48 60 43" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+    flat:       `<line x1="40" y1="44" x2="60" y2="44" stroke="white" stroke-width="2.5" stroke-linecap="round"/>`,
+    frown:      `<path d="M 36 50 Q 50 40 64 50" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+    gasp:       `<ellipse cx="50" cy="44" rx="4.5" ry="5.5" fill="white"/>`,
+    sad:        `<path d="M 38 48 Q 50 42 62 48" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+};
+
+function makeChipSvg({ eyes, mouth, body = '#7c6af7', bodyLight = '#8e7ef8', head = '#9b8ff8' } = {}) {
+    return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" width="64" height="64" class="ai-buddy-svg">
+  <ellipse cx="50" cy="107" rx="22" ry="5" fill="rgba(0,0,0,0.15)"/>
+  <rect x="22" y="48" width="56" height="48" rx="12" fill="${body}"/>
+  <rect x="22" y="48" width="56" height="16" rx="6" fill="${bodyLight}"/>
+  <rect x="32" y="68" width="36" height="20" rx="6" fill="#6355d4" opacity="0.6"/>
+  <circle cx="42" cy="75" r="4" fill="#c4b8ff" opacity="0.85"/>
+  <circle cx="58" cy="75" r="4" fill="#c4b8ff" opacity="0.85"/>
+  <rect x="36" y="82" width="28" height="4" rx="2" fill="#c4b8ff" opacity="0.5"/>
+  <rect x="4" y="52" width="18" height="11" rx="5.5" fill="${body}"/>
+  <rect x="78" y="52" width="18" height="11" rx="5.5" fill="${body}"/>
+  <circle cx="9" cy="57" r="5" fill="#9b8ff8"/>
+  <circle cx="91" cy="57" r="5" fill="#9b8ff8"/>
+  <rect x="17" y="6" width="66" height="48" rx="14" fill="${head}"/>
+  <rect x="22" y="8" width="56" height="16" rx="10" fill="rgba(255,255,255,0.1)"/>
+  <circle cx="17" cy="24" r="5" fill="#8075e8"/>
+  <circle cx="83" cy="24" r="5" fill="#8075e8"/>
+  <circle cx="17" cy="24" r="2.5" fill="#c4b8ff" opacity="0.7"/>
+  <circle cx="83" cy="24" r="2.5" fill="#c4b8ff" opacity="0.7"/>
+  <rect x="44" y="0" width="12" height="10" rx="4" fill="#8075e8"/>
+  <circle cx="50" cy="-2" r="6" fill="#c4b8ff"/>
+  <circle cx="50" cy="-2" r="3" fill="white" opacity="0.8" class="antenna-glow"/>
+  ${eyes}
+  ${mouth}
+</svg>`;
+}
+
+// Inline Chip avatar variants used by the "Chip" avatar preset. Referenced by
+// "builtin:chip/<key>" paths in emotionAvatars.
+const CHIP_VARIANTS = {
+    idle:       makeChipSvg({ eyes: CHIP_EYES.normal,  mouth: CHIP_MOUTHS.smile }),
+    emerge:     makeChipSvg({ eyes: CHIP_EYES.wide,    mouth: CHIP_MOUTHS.bigSmile }),
+    disappear:  makeChipSvg({ eyes: CHIP_EYES.closed,  mouth: CHIP_MOUTHS.flat }),
+    lookAround: makeChipSvg({ eyes: CHIP_EYES.sideL,   mouth: CHIP_MOUTHS.smallSmile }),
+    happy:      makeChipSvg({ eyes: CHIP_EYES.squint,  mouth: CHIP_MOUTHS.bigSmile }),
+    angry:      makeChipSvg({ eyes: CHIP_EYES.angry,   mouth: CHIP_MOUTHS.frown, body: '#d04040', bodyLight: '#e85858', head: '#e56868' }),
+    disappoint: makeChipSvg({ eyes: CHIP_EYES.sad,     mouth: CHIP_MOUTHS.sad,   body: '#6878a0', bodyLight: '#7988b0', head: '#8a98c0' }),
+    excited:    makeChipSvg({ eyes: CHIP_EYES.sparkle, mouth: CHIP_MOUTHS.gasp }),
+};
 
 const BUDDY_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" width="64" height="64" class="ai-buddy-svg">
@@ -550,6 +627,18 @@ class AiBuddyPlugin extends Plugin {
             return;
         }
 
+        // Inline built-in SVG variants (e.g. "builtin:chip/happy")
+        if (path.startsWith('builtin:')) {
+            const key = path.slice('builtin:'.length);
+            if (key.startsWith('chip/')) {
+                const variantKey = key.slice('chip/'.length);
+                wrapper.innerHTML = CHIP_VARIANTS[variantKey] || BUDDY_SVG;
+            } else {
+                wrapper.innerHTML = BUDDY_SVG;
+            }
+            return;
+        }
+
         const isUrl = /^https?:\/\//i.test(path);
         const src   = isUrl ? path : this.app.vault.adapter.getResourcePath(path);
         const isGif = /\.gif(\?.*)?$/i.test(path);
@@ -680,10 +769,12 @@ class AiBuddyPlugin extends Plugin {
             // Leave user's existing paths alone
             return;
         }
+        // Builtin presets use "builtin:" paths (inline SVG); bundled presets need
+        // the plugin directory prefix so the vault adapter can serve the files.
         const base = preset.bundled ? `${this.manifest.dir}/` : '';
         const out  = {};
         for (const [emotion, relPath] of Object.entries(preset.paths)) {
-            out[emotion] = `${base}${relPath}`;
+            out[emotion] = relPath ? (preset.builtin ? relPath : `${base}${relPath}`) : '';
         }
         this.settings.emotionAvatars = out;
         // Kick off asset download in the background (no-op if already present)
@@ -761,12 +852,14 @@ class AiBuddyPlugin extends Plugin {
         const emotionPath     = emotionAvatars[key] || '';
         const defaultPath     = emotionAvatars.default || '';
         const hasEmotionAsset = !!emotionPath && emotionPath !== defaultPath;
+        // Only GIFs animate themselves; static images (SVG/PNG/JPG) need CSS motion
+        const isSelfAnimating = hasEmotionAsset && /\.gif(\?.*)?$/i.test(emotionPath);
 
         // Reset animation class (force reflow so same-key retrigger works)
         for (const k of Object.keys(DEFAULT_EMOTIONS)) this.buddyEl.removeClass(`emotion-${k}`);
         void this.buddyEl.offsetWidth;
-        // If we have a dedicated asset, the GIF IS the animation — skip CSS transforms
-        if (!hasEmotionAsset) this.buddyEl.addClass(`emotion-${key}`);
+        // Apply CSS keyframe animation unless the asset self-animates (GIF)
+        if (!isSelfAnimating) this.buddyEl.addClass(`emotion-${key}`);
 
         // Swap avatar to emotion-specific art if provided
         if (hasEmotionAsset) this._renderAvatar(emotionPath, true);
@@ -1786,30 +1879,20 @@ class AiBuddySettingTab extends PluginSettingTab {
             }).style.marginBottom = '8px';
         }
 
-        // Per-emotion avatar paths
-        const avatarEmotions = [
-            ['default', 'Default (used when no emotion is active)'],
-            ...Object.entries(DEFAULT_EMOTIONS).map(([k, v]) => [k, v.label]),
-        ];
-        for (const [key, label] of avatarEmotions) {
-            new Setting(containerEl)
-                .setName(`${label} avatar`)
-                .setDesc(key === 'default'
-                    ? 'Vault path (e.g. attachments/pip.gif) or https URL. Leave empty for the built-in robot.'
-                    : `Shown during ${label.toLowerCase()}. Leave empty to reuse the default.`)
-                .addText(t => t
-                    .setPlaceholder(key === 'default' ? 'attachments/pip.gif' : '(reuses default)')
-                    .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
-                    .onChange(async v => {
-                        this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
-                        this.plugin.settings.emotionAvatars[key] = v.trim();
-                        this.plugin.settings.avatarPreset = 'custom';
-                        await this.plugin.saveSettings();
-                        if (key === 'default' && this.plugin.buddyEl) {
-                            this.plugin._renderAvatar(v.trim());
-                        }
-                    }));
-        }
+        // Default avatar path — per-emotion avatars live in the Personality section
+        new Setting(containerEl)
+            .setName('Default avatar')
+            .setDesc('Shown when no emotion is active. Vault path (e.g. attachments/pip.gif), https URL, or leave empty for built-in Chip.')
+            .addText(t => t
+                .setPlaceholder('attachments/pip.gif or https://...')
+                .setValue(this.plugin.settings.emotionAvatars?.default || '')
+                .onChange(async v => {
+                    this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
+                    this.plugin.settings.emotionAvatars.default = v.trim();
+                    this.plugin.settings.avatarPreset = 'custom';
+                    await this.plugin.saveSettings();
+                    if (this.plugin.buddyEl) this.plugin._renderAvatar(v.trim());
+                }));
 
         new Setting(containerEl)
             .setName('GIF playback speed')
@@ -1915,27 +1998,50 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         const emotionDesc = containerEl.createEl('p', {
             cls: 'setting-item-description',
-            text: `Customize the messages ${this.plugin.settings.buddyName} says for each emotion. Separate alternates with a pipe ( | ) — a random one is picked each time. Use {name} to insert the buddy's name. Leave empty to reset to default.`,
+            text: `Configure what ${this.plugin.settings.buddyName} says and looks like for each emotion. Messages: separate alternates with a pipe ( | ), use {name} for the buddy's name. Avatars: leave empty to reuse the default. Click Preview to test.`,
         });
         emotionDesc.style.marginBottom = '8px';
 
         for (const [key, def] of Object.entries(DEFAULT_EMOTIONS)) {
-            const setting = new Setting(containerEl)
-                .setName(def.label)
-                .setDesc(`Default: ${def.defaultMsg.replace(/\{name\}/g, this.plugin.settings.buddyName)}`);
-            setting.addText(t => {
-                t.inputEl.addClass('ai-buddy-emotion-msg');
-                t.setPlaceholder(def.defaultMsg)
-                    .setValue(this.plugin.settings.emotionMessages?.[key] || '')
-                    .onChange(async v => {
-                        this.plugin.settings.emotionMessages = this.plugin.settings.emotionMessages || {};
-                        this.plugin.settings.emotionMessages[key] = v;
-                        await this.plugin.saveSettings();
-                    });
+            // Section header for this emotion
+            containerEl.createEl('div', {
+                cls: 'ai-buddy-emotion-header',
+                text: def.label,
             });
-            setting.addButton(b => b
-                .setButtonText('Preview')
-                .onClick(() => this.plugin.triggerEmotion(key, { preview: true })));
+
+            // Message input + Preview button
+            new Setting(containerEl)
+                .setName('Message')
+                .setDesc(`Default: ${def.defaultMsg.replace(/\{name\}/g, this.plugin.settings.buddyName)}`)
+                .addText(t => {
+                    t.inputEl.addClass('ai-buddy-emotion-msg');
+                    t.setPlaceholder(def.defaultMsg)
+                        .setValue(this.plugin.settings.emotionMessages?.[key] || '')
+                        .onChange(async v => {
+                            this.plugin.settings.emotionMessages = this.plugin.settings.emotionMessages || {};
+                            this.plugin.settings.emotionMessages[key] = v;
+                            await this.plugin.saveSettings();
+                        });
+                })
+                .addButton(b => b
+                    .setButtonText('Preview')
+                    .onClick(() => this.plugin.triggerEmotion(key, { preview: true })));
+
+            // Avatar input
+            new Setting(containerEl)
+                .setName('Avatar')
+                .setDesc('Path, URL, or builtin: ref. Leave empty to reuse the default avatar.')
+                .addText(t => {
+                    t.inputEl.addClass('ai-buddy-emotion-msg');
+                    t.setPlaceholder('(reuses default)')
+                        .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
+                        .onChange(async v => {
+                            this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
+                            this.plugin.settings.emotionAvatars[key] = v.trim();
+                            this.plugin.settings.avatarPreset = 'custom';
+                            await this.plugin.saveSettings();
+                        });
+                });
         }
 
         containerEl.createEl('h3', { text: 'AI Provider' });

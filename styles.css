@@ -641,3 +641,13 @@
   font-family: var(--font-monospace);
   font-size: 12px;
 }
+
+.ai-buddy-emotion-header {
+  font-weight: 700;
+  font-size: 13px;
+  margin: 16px 0 2px;
+  padding: 4px 0 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  letter-spacing: 0.02em;
+}

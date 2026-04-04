@@ -22,7 +22,8 @@ const DEFAULT_SETTINGS = {
     emotionAvatars: {},              // { default, emerge, disappear, idle, lookAround, happy, angry, disappoint, excited } → paths/URLs
     gifSpeed: 1.0,                   // GIF playback speed multiplier (0–2, 0 = paused)
     savedPosition: null,             // null = default corner; {fromRight, fromBottom} when dragged
-    theme: 'purple',                 // visual color theme (see THEMES below)
+    theme: 'purple',                 // color palette (see THEMES below)
+    visualStyle: 'glow',             // overall aesthetic (see VISUAL_STYLES below)
     customFont: '',                  // font-family override for the buddy UI (empty = inherit)
     emotionsEnabled: true,           // master toggle for personality/emotion reactions
     emotionMessages: {},             // {emotionKey: "msg1|msg2|msg3"} user overrides; falls back to DEFAULT_EMOTIONS
@@ -44,6 +45,38 @@ const THEMES = {
     candy:   { label: 'Candy',            primary: '217, 70, 239',  light: '232, 121, 249', pale: '240, 171, 252', dark: '162, 28, 175'  },
     mono:    { label: 'Monochrome',       primary: '100, 116, 139', light: '148, 163, 184', pale: '203, 213, 225', dark: '51, 65, 85'    },
     gold:    { label: 'Gold',             primary: '234, 179, 8',   light: '250, 204, 21',  pale: '253, 224, 71',  dark: '161, 98, 7'    },
+};
+
+// ─── Visual Styles ────────────────────────────────────────────────────────────
+// Each style is a complete design system: borders, shadows, radii, fonts and
+// chrome details. Applied via the `visual-<key>` class on the buddy root.
+// The color palette (see THEMES) tints the accents where the style permits.
+
+const VISUAL_STYLES = {
+    glow: {
+        label:       'Glow',
+        description: 'Glowing tech with soft purple accents (default)',
+    },
+    paper: {
+        label:       'Paper',
+        description: 'Warm cream notepad with dashed borders and serif type',
+    },
+    minimal: {
+        label:       'Minimal',
+        description: 'Clean flat design, thin borders, tight spacing',
+    },
+    terminal: {
+        label:       'Terminal',
+        description: 'Green-on-black retro CRT with scanlines and monospace',
+    },
+    neon: {
+        label:       'Neon',
+        description: 'Cyberpunk arcade: dark panels with hot neon outlines',
+    },
+    cozy: {
+        label:       'Cozy',
+        description: 'Soft pastel plushie with pillowy rounded corners',
+    },
 };
 
 // ─── Avatar Presets ───────────────────────────────────────────────────────────
@@ -819,7 +852,12 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl.style.setProperty('--buddy-primary-pale',  theme.pale);
         this.buddyEl.style.setProperty('--buddy-primary-dark',  theme.dark);
         const font = (this.settings.customFont || '').trim();
-        this.buddyEl.style.setProperty('--buddy-font', font || 'inherit');
+        this.buddyEl.style.setProperty('--buddy-font', font || '');
+
+        // Apply visual style class
+        for (const key of Object.keys(VISUAL_STYLES)) this.buddyEl.removeClass(`visual-${key}`);
+        const style = VISUAL_STYLES[this.settings.visualStyle] ? this.settings.visualStyle : 'glow';
+        this.buddyEl.addClass(`visual-${style}`);
     }
 
     // ─── Emotions ──────────────────────────────────────────────────────────────
@@ -1941,9 +1979,24 @@ class AiBuddySettingTab extends PluginSettingTab {
         // ── Appearance ────────────────────────────────────────────
         containerEl.createEl('h3', { text: 'Appearance' });
 
+        const styleKey    = this.plugin.settings.visualStyle || 'glow';
+        const styleSetting = new Setting(containerEl)
+            .setName('Visual style')
+            .setDesc(VISUAL_STYLES[styleKey]?.description || 'Overall aesthetic of the buddy UI.');
+        styleSetting.addDropdown(d => {
+            for (const [key, s] of Object.entries(VISUAL_STYLES)) d.addOption(key, s.label);
+            d.setValue(styleKey)
+                .onChange(async v => {
+                    this.plugin.settings.visualStyle = v;
+                    await this.plugin.saveSettings();
+                    this.plugin.applyTheme();
+                    this.display();   // refresh description
+                });
+        });
+
         const themeSetting = new Setting(containerEl)
-            .setName('Color theme')
-            .setDesc('Pick a color palette for chat, bubble, and accents. Works in both light and dark mode.');
+            .setName('Accent color')
+            .setDesc('Color palette for borders, highlights, and accents. Some visual styles use fixed colors that override this.');
         themeSetting.addDropdown(d => {
             for (const [key, t] of Object.entries(THEMES)) d.addOption(key, t.label);
             d.setValue(this.plugin.settings.theme || 'purple')

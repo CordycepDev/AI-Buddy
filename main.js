@@ -1136,7 +1136,7 @@ class AiBuddyPlugin extends Plugin {
             const spaceBelow = containerRect.bottom - buddyRect.bottom;
             if (spaceBelow < needed) {
                 // Push Chip up — subtract buddyH so Chip's top aligns, not its bottom
-                const nudge = needed - spaceBelow - buddyH + 5;
+                const nudge = needed - spaceBelow - buddyH + 15;
                 if (nudge > 0) {
                     this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
                     this.buddyEl.style.top    = 'auto';

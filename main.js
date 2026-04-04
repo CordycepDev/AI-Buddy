@@ -447,12 +447,22 @@ class AiBuddyPlugin extends Plugin {
     updateBuddyPosition() {
         if (!this.buddyEl) return;
 
-        const rightSplit = this.app.workspace.rightSplit;
-        const leftSplit  = this.app.workspace.leftSplit;
-        const sidebarR = (rightSplit && !rightSplit.collapsed) ? rightSplit.containerEl.offsetWidth : 0;
-        const sidebarL = (leftSplit  && !leftSplit.collapsed)  ? leftSplit.containerEl.offsetWidth  : 0;
-        const containerW = this.buddyEl.parentElement.offsetWidth;
-        const chipW      = this.buddyEl.offsetWidth;
+        const container     = this.buddyEl.parentElement;
+        const containerRect = container.getBoundingClientRect();
+        const rightSplit    = this.app.workspace.rightSplit;
+        const leftSplit     = this.app.workspace.leftSplit;
+
+        // Use getBoundingClientRect for reliable sidebar edges (accounts for borders, resize handles)
+        const sidebarR = (rightSplit && !rightSplit.collapsed)
+            ? containerRect.right - rightSplit.containerEl.getBoundingClientRect().left
+            : 0;
+        const sidebarLRight = (leftSplit && !leftSplit.collapsed)
+            ? leftSplit.containerEl.getBoundingClientRect().right - containerRect.left
+            : 0;
+
+        const containerW     = container.offsetWidth;
+        const chipW          = this.buddyEl.offsetWidth;
+        const effectiveChipW = chipW || 60;
 
         let rightVal;
         if (this.settings.savedPosition) {
@@ -465,9 +475,7 @@ class AiBuddyPlugin extends Plugin {
         }
 
         // Clamp so Chip stays between left sidebar and right sidebar
-        // Use fallback width if element hasn't rendered yet (offsetWidth === 0)
-        const effectiveChipW = chipW || 60;
-        const maxRight = containerW - sidebarL - effectiveChipW - 10;  // 10px margin from sidebar edge
+        const maxRight = containerW - sidebarLRight - effectiveChipW - 10;
         rightVal = Math.max(sidebarR, Math.min(rightVal, Math.max(0, maxRight)));
         this.buddyEl.style.right = `${rightVal}px`;
 
@@ -520,11 +528,22 @@ class AiBuddyPlugin extends Plugin {
             if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
             if (!dragMoved) return;
 
-            const container = this.buddyEl.parentElement;
-            const maxLeft = container.offsetWidth  - this.buddyEl.offsetWidth;
+            const container     = this.buddyEl.parentElement;
+            const containerRect = container.getBoundingClientRect();
+            const leftSplit     = this.app.workspace.leftSplit;
+            const rightSplit    = this.app.workspace.rightSplit;
+            const minLeft = (leftSplit && !leftSplit.collapsed)
+                ? leftSplit.containerEl.getBoundingClientRect().right - containerRect.left + 10
+                : 0;
+            const maxLeft = (rightSplit && !rightSplit.collapsed)
+                ? rightSplit.containerEl.getBoundingClientRect().left - containerRect.left - this.buddyEl.offsetWidth - 10
+                : container.offsetWidth - this.buddyEl.offsetWidth;
             const maxTop  = container.offsetHeight - this.buddyEl.offsetHeight;
-            this.buddyEl.style.left = `${Math.max(0, Math.min(startLeft + dx, maxLeft))}px`;
+            this.buddyEl.style.left = `${Math.max(minLeft, Math.min(startLeft + dx, maxLeft))}px`;
             this.buddyEl.style.top  = `${Math.max(0, Math.min(startTop  + dy, maxTop))}px`;
+
+            // Reposition chat dynamically while dragging
+            if (this.chatEl?.hasClass('is-open')) this.ensureChatFits();
         };
 
         const onMouseUp = () => {
@@ -1147,10 +1166,11 @@ class AiBuddyPlugin extends Plugin {
         // ── Horizontal: align chat to whichever side has room ──
         // "right-align" = chat's right edge matches Chip's right edge, extends left
         // "left-align"  = chat's left edge matches Chip's left edge, extends right
-        const leftSplit  = this.app.workspace.leftSplit;
-        const sidebarL   = (leftSplit && !leftSplit.collapsed) ? leftSplit.containerEl.offsetWidth : 0;
+        const leftSplit    = this.app.workspace.leftSplit;
+        const sidebarLEdge = (leftSplit && !leftSplit.collapsed)
+            ? leftSplit.containerEl.getBoundingClientRect().right : containerRect.left;
         // Usable space to the left of Chip's right edge (excluding left sidebar)
-        const usableLeft = buddyRect.right - containerRect.left - sidebarL;
+        const usableLeft = buddyRect.right - sidebarLEdge;
         const alignRight = usableLeft >= chatW;
 
         this.buddyEl.removeClass('chat-align-left', 'chat-align-right');

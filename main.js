@@ -465,8 +465,10 @@ class AiBuddyPlugin extends Plugin {
         }
 
         // Clamp so Chip stays between left sidebar and right sidebar
-        const maxRight = containerW - sidebarL - chipW;
-        rightVal = Math.max(sidebarR, Math.min(rightVal, maxRight));
+        // Use fallback width if element hasn't rendered yet (offsetWidth === 0)
+        const effectiveChipW = chipW || 60;
+        const maxRight = containerW - sidebarL - effectiveChipW;
+        rightVal = Math.max(sidebarR, Math.min(rightVal, Math.max(0, maxRight)));
         this.buddyEl.style.right = `${rightVal}px`;
 
         // Always use right/bottom (never left/top) so resize is free.
@@ -1123,12 +1125,12 @@ class AiBuddyPlugin extends Plugin {
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
-    // Keep the user's preferred chat direction but nudge Chip vertically so the
-    // chat panel stays on-screen. Only touches the CSS `bottom` value — never
-    // left/right, so sidebar-aware positioning from updateBuddyPosition() is preserved.
     // Dynamically position the chat so it stays fully on-screen.
-    // 1. Pick horizontal alignment (left or right) based on available space
-    // 2. Nudge Chip vertically if the chat would overflow
+    // 1. Pick horizontal alignment (left or right) based on available space.
+    // 2. Try the preferred direction; if the chat won't fit, flip to the other.
+    //    If neither fits, pick the roomier side and nudge Chip vertically.
+    // Only touches CSS `bottom` — never left/right — so sidebar-aware
+    // positioning from updateBuddyPosition() is preserved.
     ensureChatFits() {
         if (!this.buddyEl || !this.chatEl) return;
 
@@ -1140,7 +1142,7 @@ class AiBuddyPlugin extends Plugin {
         const gap    = 10;
         const needed = chatH + gap;
         const buddyH = buddyRect.height;
-        const dir    = this.settings.chatDirection;
+        let   dir    = this.settings.chatDirection;
 
         // ── Horizontal: align chat to whichever side has room ──
         // "right-align" = chat's right edge matches Chip's right edge, extends left
@@ -1151,23 +1153,37 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl.removeClass('chat-align-left', 'chat-align-right');
         this.buddyEl.addClass(alignRight ? 'chat-align-right' : 'chat-align-left');
 
-        // ── Vertical: nudge Chip so chat fits in the preferred direction ──
+        // ── Vertical: flip direction if chat overflows, nudge only as last resort ──
         const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;
         const spaceAbove    = buddyRect.top    - containerRect.top;
         const spaceBelow    = containerRect.bottom - buddyRect.bottom;
 
-        if (dir === 'below' && spaceBelow < needed) {
-            const nudge = needed - spaceBelow - buddyH + 15;
-            if (nudge > 0) {
-                this.buddyEl.style.bottom = `${currentBottom + nudge}px`;
-                this.buddyEl.style.top    = 'auto';
+        // Try preferred direction; if it doesn't fit, flip
+        const prefSpace = dir === 'above' ? spaceAbove : spaceBelow;
+        if (prefSpace < needed) {
+            const flipDir   = dir === 'above' ? 'below' : 'above';
+            const flipSpace = dir === 'above' ? spaceBelow : spaceAbove;
+            dir = flipSpace >= needed ? flipDir
+                : flipSpace > prefSpace ? flipDir   // pick whichever has more room
+                : dir;
+        }
+
+        // Apply the (possibly flipped) direction class
+        this.buddyEl.removeClass('chat-direction-above', 'chat-direction-below');
+        this.buddyEl.addClass(`chat-direction-${dir}`);
+
+        // If neither direction had enough room, nudge Chip to create space
+        const chosenSpace = dir === 'above' ? spaceAbove : spaceBelow;
+        if (chosenSpace < needed) {
+            const deficit = needed - chosenSpace + 15;          // 15px breathing room
+            if (dir === 'below') {
+                // Need more space below → push Chip up (increase bottom)
+                this.buddyEl.style.bottom = `${currentBottom + deficit}px`;
+            } else {
+                // Need more space above → push Chip down (decrease bottom)
+                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - deficit)}px`;
             }
-        } else if (dir === 'above' && spaceAbove < needed) {
-            const nudge = needed - spaceAbove - buddyH + 15;
-            if (nudge > 0) {
-                this.buddyEl.style.bottom = `${Math.max(0, currentBottom - nudge)}px`;
-                this.buddyEl.style.top    = 'auto';
-            }
+            this.buddyEl.style.top = 'auto';
         }
     }
 

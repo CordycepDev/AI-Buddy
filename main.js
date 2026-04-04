@@ -1107,11 +1107,12 @@ class AiBuddyPlugin extends Plugin {
             this.chatMessages.push({ role: 'assistant', content: text });
         }
 
-        this.ensureChatFits();
         this.updateContextIndicator();
         this.chatEl?.addClass('is-open');
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
+        // Nudge after the chat has rendered so we can measure its actual size
+        requestAnimationFrame(() => this.ensureChatFits());
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
@@ -1124,8 +1125,9 @@ class AiBuddyPlugin extends Plugin {
         const container     = this.buddyEl.parentElement;
         const containerRect = container.getBoundingClientRect();
         const buddyRect     = this.buddyEl.getBoundingClientRect();
-        const chatH  = 460;  // chat max-height (from CSS)
-        const gap    = 10;   // gap between avatar and chat
+        const chatRect      = this.chatEl.getBoundingClientRect();
+        const chatH  = chatRect.height || 460;  // actual rendered height
+        const gap    = 10;
         const needed = chatH + gap;
         const dir    = this.settings.chatDirection;
         const currentBottom = parseInt(this.buddyEl.style.bottom) || 0;

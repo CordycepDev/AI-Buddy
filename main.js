@@ -467,7 +467,7 @@ class AiBuddyPlugin extends Plugin {
         // Clamp so Chip stays between left sidebar and right sidebar
         // Use fallback width if element hasn't rendered yet (offsetWidth === 0)
         const effectiveChipW = chipW || 60;
-        const maxRight = containerW - sidebarL - effectiveChipW;
+        const maxRight = containerW - sidebarL - effectiveChipW - 10;  // 10px margin from sidebar edge
         rightVal = Math.max(sidebarR, Math.min(rightVal, Math.max(0, maxRight)));
         this.buddyEl.style.right = `${rightVal}px`;
 
@@ -1147,8 +1147,11 @@ class AiBuddyPlugin extends Plugin {
         // ── Horizontal: align chat to whichever side has room ──
         // "right-align" = chat's right edge matches Chip's right edge, extends left
         // "left-align"  = chat's left edge matches Chip's left edge, extends right
-        const chipFromLeft = buddyRect.right - containerRect.left;  // Chip's right edge from container left
-        const alignRight   = chipFromLeft >= chatW;
+        const leftSplit  = this.app.workspace.leftSplit;
+        const sidebarL   = (leftSplit && !leftSplit.collapsed) ? leftSplit.containerEl.offsetWidth : 0;
+        // Usable space to the left of Chip's right edge (excluding left sidebar)
+        const usableLeft = buddyRect.right - containerRect.left - sidebarL;
+        const alignRight = usableLeft >= chatW;
 
         this.buddyEl.removeClass('chat-align-left', 'chat-align-right');
         this.buddyEl.addClass(alignRight ? 'chat-align-right' : 'chat-align-left');

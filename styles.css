@@ -217,6 +217,7 @@
 
 .ai-buddy-bubble {
   position: absolute;
+  /* positioning set by .bubble-direction-* and .bubble-align-* on the root */
   bottom: calc(100% + 10px);
   right: 0;
   background: var(--background-primary);
@@ -238,6 +239,26 @@
   pointer-events: none;
   z-index: 10;
 }
+
+/* Vertical direction for the bubble */
+.ai-buddy-root.bubble-direction-above .ai-buddy-bubble {
+  bottom: calc(100% + 10px);
+  top: auto;
+}
+.ai-buddy-root.bubble-direction-below .ai-buddy-bubble {
+  top: calc(100% + 10px);
+  bottom: auto;
+}
+
+/* Horizontal alignment for the bubble */
+.ai-buddy-root.bubble-align-right .ai-buddy-bubble { right: 0; left: auto; }
+.ai-buddy-root.bubble-align-left  .ai-buddy-bubble { left: 0;  right: auto; }
+
+/* Tail corner (smaller radius) points toward Chip */
+.ai-buddy-root.bubble-direction-above.bubble-align-right .ai-buddy-bubble { border-radius: 14px 14px 4px 14px; }
+.ai-buddy-root.bubble-direction-above.bubble-align-left  .ai-buddy-bubble { border-radius: 14px 14px 14px 4px; }
+.ai-buddy-root.bubble-direction-below.bubble-align-right .ai-buddy-bubble { border-radius: 14px 4px 14px 14px; }
+.ai-buddy-root.bubble-direction-below.bubble-align-left  .ai-buddy-bubble { border-radius: 4px 14px 14px 14px; }
 
 .ai-buddy-root.bubble-visible .ai-buddy-bubble {
   opacity: 1;

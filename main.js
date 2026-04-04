@@ -1029,8 +1029,9 @@ class AiBuddyPlugin extends Plugin {
             this.buddyEl.style.left = `${Math.max(minLeft, Math.min(startLeft + dx, maxLeft))}px`;
             this.buddyEl.style.top  = `${Math.max(0, Math.min(startTop  + dy, maxTop))}px`;
 
-            // Reposition chat dynamically while dragging
+            // Reposition chat/bubble dynamically while dragging
             if (this.chatEl?.hasClass('is-open')) this.ensureChatFits();
+            if (this.buddyEl.hasClass('bubble-visible')) this._positionBubble();
         };
 
         const onMouseUp = () => {
@@ -1104,9 +1105,42 @@ class AiBuddyPlugin extends Plugin {
         schedule();
     }
 
+    // Pick direction/alignment for the speech bubble so it stays on-screen.
+    // Mirrors the chat positioning logic (accounts for left sidebar, picks
+    // above vs below and left vs right based on available space).
+    _positionBubble() {
+        if (!this.buddyEl) return;
+        const container     = this.buddyEl.parentElement;
+        if (!container) return;
+        const containerRect = container.getBoundingClientRect();
+        const buddyRect     = this.buddyEl.getBoundingClientRect();
+        const leftSplit     = this.app.workspace.leftSplit;
+        const sidebarLEdge  = (leftSplit && !leftSplit.collapsed)
+            ? leftSplit.containerEl.getBoundingClientRect().right : containerRect.left;
+
+        // Conservative bubble dimension estimates (max-width 260 + padding)
+        const bubbleW = 290;
+        const bubbleH = 90;
+
+        // Horizontal: right-align (bubble extends LEFT from Chip's right edge)
+        // requires enough usable space to the left of Chip
+        const usableLeft = buddyRect.right - sidebarLEdge;
+        const alignRight = usableLeft >= bubbleW;
+        this.buddyEl.removeClass('bubble-align-left', 'bubble-align-right');
+        this.buddyEl.addClass(alignRight ? 'bubble-align-right' : 'bubble-align-left');
+
+        // Vertical: above if there's room, otherwise below
+        const spaceAbove = buddyRect.top - containerRect.top;
+        const spaceBelow = containerRect.bottom - buddyRect.bottom;
+        const directionAbove = spaceAbove >= bubbleH + 10 || spaceAbove > spaceBelow;
+        this.buddyEl.removeClass('bubble-direction-above', 'bubble-direction-below');
+        this.buddyEl.addClass(directionAbove ? 'bubble-direction-above' : 'bubble-direction-below');
+    }
+
     showBubble(text, duration = 5000) {
         if (!this.bubbleTextEl || !this.buddyEl) return;
         this.bubbleTextEl.textContent = text;
+        this._positionBubble();
         this.buddyEl.addClass('bubble-visible');
         clearTimeout(this._bubbleTimer);
         if (duration > 0) {

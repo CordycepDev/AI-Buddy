@@ -142,6 +142,11 @@ const BUDDY_SVG = `
 // ─── GIF Player ───────────────────────────────────────────────────────────────
 // Minimal GIF89a decoder that renders frames onto a canvas with custom speed.
 
+// Module-level cache of parsed GIF frames, keyed by source path. Parsing a GIF
+// is the expensive part; reusing frames across emotion swaps makes transitions
+// instant so short-lived emotions (angry, happy, etc.) are actually visible.
+const GIF_FRAME_CACHE = new Map();
+
 class GifPlayer {
     constructor(canvas, speed = 1.0) {
         this.canvas  = canvas;
@@ -153,11 +158,22 @@ class GifPlayer {
         this._timer  = null;
     }
 
-    async load(src, fetcher, onError) {
+    async load(src, fetcher, onError, cacheKey) {
+        // Fast path: we've already parsed this GIF before
+        if (cacheKey && GIF_FRAME_CACHE.has(cacheKey)) {
+            this.frames = GIF_FRAME_CACHE.get(cacheKey);
+            if (this.frames.length === 0) { onError?.(); return; }
+            this.canvas.width  = this.frames[0].w;
+            this.canvas.height = this.frames[0].h;
+            this._active = true;
+            this._tick();
+            return;
+        }
         try {
             const data = await fetcher(src);
             this.frames = GifPlayer.parse(data);
             if (this.frames.length === 0) { onError?.(); return; }
+            if (cacheKey) GIF_FRAME_CACHE.set(cacheKey, this.frames);
             this.canvas.width  = this.frames[0].w;
             this.canvas.height = this.frames[0].h;
             this._active = true;
@@ -382,7 +398,7 @@ class AiBuddyPlugin extends Plugin {
             if (this.chatEl?.hasClass('is-open')) return;
             // Skip the initial file-open that fires on layout ready
             if (!this._hasSeenFirstOpen) { this._hasSeenFirstOpen = true; return; }
-            this.triggerEmotion('excited', { duration: 3500, animationMs: 1400 });
+            this.triggerEmotion('excited', { duration: 4000, animationMs: 2200 });
         }));
 
         this.app.workspace.onLayoutReady(() => {
@@ -422,7 +438,7 @@ class AiBuddyPlugin extends Plugin {
         tipBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.registerBuddyInteraction();
-            this.triggerEmotion('happy', { silent: true, animationMs: 1400 });
+            this.triggerEmotion('happy', { silent: true, animationMs: 2200 });
             this.showProactiveTip(true);
         });
 
@@ -505,8 +521,11 @@ class AiBuddyPlugin extends Plugin {
         if (leftSplit?.containerEl)  ro.observe(leftSplit.containerEl);
         this.register(() => ro.disconnect());
 
+        // Preload emotion GIFs so avatar swaps during emotions are instant
+        this._preloadEmotionAvatars();
+
         // Trigger emerge emotion (plays animation + shows greeting bubble)
-        this.triggerEmotion('emerge', { duration: 5000, animationMs: 1600, force: true });
+        this.triggerEmotion('emerge', { duration: 5000, animationMs: 2400, force: true });
 
         // Start idle/look-around watchers
         this.startIdleWatcher();
@@ -541,7 +560,7 @@ class AiBuddyPlugin extends Plugin {
                 // Fall back to built-in SVG on load failure
                 canvas.remove();
                 wrapper.innerHTML = BUDDY_SVG;
-            });
+            }, path);   // cache key
         } else {
             const img = wrapper.createEl('img', {
                 cls: 'ai-buddy-custom-avatar',
@@ -554,6 +573,24 @@ class AiBuddyPlugin extends Plugin {
                 img.remove();
                 wrapper.innerHTML = BUDDY_SVG;
             });
+        }
+    }
+
+    // Pre-parse every emotion GIF once so later avatar swaps are instant
+    // (no fetch / no LZW decode during the emotion's visible window).
+    async _preloadEmotionAvatars() {
+        const paths = Object.values(this.settings.emotionAvatars || {}).filter(Boolean);
+        const unique = [...new Set(paths)];
+        for (const path of unique) {
+            if (GIF_FRAME_CACHE.has(path)) continue;
+            if (!/\.gif(\?.*)?$/i.test(path)) continue;
+            try {
+                const data = await this._fetchGifData(path, path);
+                const frames = GifPlayer.parse(data);
+                GIF_FRAME_CACHE.set(path, frames);
+            } catch (e) {
+                console.warn(`AI Buddy: preload failed for ${path}`, e);
+            }
         }
     }
 
@@ -615,8 +652,8 @@ class AiBuddyPlugin extends Plugin {
         this.settings.showBuddy = false;
         this.saveSettings();
         // Play disappear animation first, then remove
-        this.triggerEmotion('disappear', { duration: 1500, animationMs: 700 });
-        setTimeout(() => this.removeBuddy(), 700);
+        this.triggerEmotion('disappear', { duration: 1800, animationMs: 1000 });
+        setTimeout(() => this.removeBuddy(), 1000);
     }
 
     applyDirectionClass() {
@@ -673,6 +710,8 @@ class AiBuddyPlugin extends Plugin {
                 console.warn(`AI Buddy: failed to fetch preset asset ${relPath}`, e);
             }
         }
+        // Warm the frame cache so the first emotion swap is instant
+        if (this.buddyEl) this._preloadEmotionAvatars();
     }
 
     applyTheme() {
@@ -737,7 +776,7 @@ class AiBuddyPlugin extends Plugin {
         } else {
             // lookAround is part of idle behavior and shouldn't break idle state
             if (key !== 'lookAround') this._isIdle = false;
-            const ms = opts.animationMs ?? 1800;
+            const ms = opts.animationMs ?? 2500;
             this._emotionTimer = setTimeout(() => {
                 this.buddyEl?.removeClass(`emotion-${key}`);
                 // Restore default avatar (or idle avatar if still idle)
@@ -905,11 +944,11 @@ class AiBuddyPlugin extends Plugin {
                 this._recentDrags = (this._recentDrags || []).filter(t => Date.now() - t < 12000);
                 this._recentDrags.push(Date.now());
                 if (this._recentDrags.length >= 3) {
-                    this.triggerEmotion('angry', { animationMs: 1700, duration: 3500 });
+                    this.triggerEmotion('angry', { animationMs: 2500, duration: 3500 });
                     this._recentDrags = [];
                 } else if (this._recentDrags.length === 2 && Math.random() < 0.4) {
                     // Occasional happy/excited on normal drag around
-                    this.triggerEmotion(Math.random() < 0.5 ? 'happy' : 'excited', { silent: true, animationMs: 1400 });
+                    this.triggerEmotion(Math.random() < 0.5 ? 'happy' : 'excited', { silent: true, animationMs: 2200 });
                 }
             }
 
@@ -977,7 +1016,7 @@ class AiBuddyPlugin extends Plugin {
                 // Auto-dismissed with a pending tip still unread → disappointed
                 if (this.pendingTip) {
                     this.pendingTip = null;
-                    this.triggerEmotion('disappoint', { animationMs: 1800, duration: 3500 });
+                    this.triggerEmotion('disappoint', { animationMs: 2500, duration: 3500 });
                 }
             }, duration);
         }
@@ -1416,7 +1455,7 @@ class AiBuddyPlugin extends Plugin {
         this._chatHadMessages = true;
         this.registerBuddyInteraction();
         // Longer messages feel more engaged → excited; short ones → happy
-        this.triggerEmotion(text.length > 60 ? 'excited' : 'happy', { silent: true, animationMs: 1400 });
+        this.triggerEmotion(text.length > 60 ? 'excited' : 'happy', { silent: true, animationMs: 2200 });
         this.isThinking = true;
         this.renderMessages();
 
@@ -1441,11 +1480,11 @@ class AiBuddyPlugin extends Plugin {
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: reply });
             // Occasional happy reaction on successful reply (30% chance, silent)
-            if (Math.random() < 0.3) this.triggerEmotion('happy', { silent: true, animationMs: 1400 });
+            if (Math.random() < 0.3) this.triggerEmotion('happy', { silent: true, animationMs: 2200 });
         } catch (err) {
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: `Hmm, something went wrong: ${err.message}` });
-            this.triggerEmotion('angry', { silent: true, animationMs: 1700 });
+            this.triggerEmotion('angry', { silent: true, animationMs: 2500 });
         }
 
         this.isThinking = false;
@@ -1523,7 +1562,7 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
         this.ensureChatFits();
-        this.triggerEmotion(wasPending ? 'excited' : 'happy', { silent: true, animationMs: 1400 });
+        this.triggerEmotion(wasPending ? 'excited' : 'happy', { silent: true, animationMs: 2200 });
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
@@ -1609,10 +1648,10 @@ class AiBuddyPlugin extends Plugin {
         if (openedAt > 0) {
             if (!hadMessages && openDuration < 2000) {
                 // Opened and dismissed in <2s without saying anything → annoyed
-                this.triggerEmotion('angry', { animationMs: 1700, duration: 3500 });
+                this.triggerEmotion('angry', { animationMs: 2500, duration: 3500 });
             } else if (!hadMessages && openDuration >= 2000) {
                 // Opened, looked, left without asking → disappointed
-                this.triggerEmotion('disappoint', { animationMs: 1800, duration: 3500 });
+                this.triggerEmotion('disappoint', { animationMs: 2500, duration: 3500 });
             }
         }
         this._chatOpenedAt = 0;

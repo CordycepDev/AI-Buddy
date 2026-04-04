@@ -313,9 +313,10 @@ class AiBuddyPlugin extends Plugin {
         // Tip button — sits above the avatar, revealed on hover
         const tipBtn = avatarSection.createEl('button', {
             cls: 'ai-buddy-tip-btn',
-            attr: { title: 'Get a tip from Chip' },
+            attr: { title: `Get a tip from ${this.settings.buddyName}` },
             text: '💡',
         });
+        this.tipBtnEl = tipBtn;
         tipBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showProactiveTip(true);
@@ -1293,6 +1294,7 @@ class AiBuddySettingTab extends PluginSettingTab {
                     this.plugin.settings.buddyName = v || 'Chip';
                     await this.plugin.saveSettings();
                     if (this.plugin.nameTagEl) this.plugin.nameTagEl.textContent = this.plugin.settings.buddyName;
+                    if (this.plugin.tipBtnEl) this.plugin.tipBtnEl.setAttribute('title', `Get a tip from ${this.plugin.settings.buddyName}`);
                 }));
 
         new Setting(containerEl)
@@ -1353,7 +1355,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Reset position')
-            .setDesc('Snap Chip back to the default bottom-right corner.')
+            .setDesc(`Snap ${this.plugin.settings.buddyName} back to the default bottom-right corner.`)
             .addButton(b => b
                 .setButtonText('Reset')
                 .onClick(async () => {
@@ -1364,7 +1366,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Proactive tips')
-            .setDesc('Chip will occasionally pop up with a note-related tip.')
+            .setDesc(`${this.plugin.settings.buddyName} will occasionally pop up with a note-related tip.`)
             .addToggle(t => t
                 .setValue(this.plugin.settings.proactiveTips)
                 .onChange(async v => {
@@ -1376,7 +1378,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Tip interval (minutes)')
-            .setDesc('How often Chip checks in automatically.')
+            .setDesc(`How often ${this.plugin.settings.buddyName} checks in automatically.`)
             .addSlider(s => s
                 .setLimits(2, 30, 1)
                 .setValue(this.plugin.settings.tipIntervalMinutes)
@@ -1436,7 +1438,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Proactive tip instruction')
-            .setDesc('Tell Chip what kind of tips to give when it pops up automatically. The note content is always included.')
+            .setDesc(`Tell ${this.plugin.settings.buddyName} what kind of tips to give when it pops up automatically. The note content is always included.`)
             .addTextArea(t => {
                 t.setValue(this.plugin.settings.tipPrompt || DEFAULT_SETTINGS.tipPrompt)
                     .onChange(async v => { this.plugin.settings.tipPrompt = v; await this.plugin.saveSettings(); });

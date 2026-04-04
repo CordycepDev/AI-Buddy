@@ -382,7 +382,7 @@ class AiBuddyPlugin extends Plugin {
             if (this.chatEl?.hasClass('is-open')) return;
             // Skip the initial file-open that fires on layout ready
             if (!this._hasSeenFirstOpen) { this._hasSeenFirstOpen = true; return; }
-            this.triggerEmotion('excited', { duration: 2500, animationMs: 700 });
+            this.triggerEmotion('excited', { duration: 3500, animationMs: 1400 });
         }));
 
         this.app.workspace.onLayoutReady(() => {
@@ -422,7 +422,7 @@ class AiBuddyPlugin extends Plugin {
         tipBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.registerBuddyInteraction();
-            this.triggerEmotion('happy', { silent: true, animationMs: 600 });
+            this.triggerEmotion('happy', { silent: true, animationMs: 1400 });
             this.showProactiveTip(true);
         });
 
@@ -506,7 +506,7 @@ class AiBuddyPlugin extends Plugin {
         this.register(() => ro.disconnect());
 
         // Trigger emerge emotion (plays animation + shows greeting bubble)
-        this.triggerEmotion('emerge', { duration: 4000, animationMs: 600, force: true });
+        this.triggerEmotion('emerge', { duration: 5000, animationMs: 1600, force: true });
 
         // Start idle/look-around watchers
         this.startIdleWatcher();
@@ -615,8 +615,8 @@ class AiBuddyPlugin extends Plugin {
         this.settings.showBuddy = false;
         this.saveSettings();
         // Play disappear animation first, then remove
-        this.triggerEmotion('disappear', { duration: 1200, animationMs: 400 });
-        setTimeout(() => this.removeBuddy(), 400);
+        this.triggerEmotion('disappear', { duration: 1500, animationMs: 700 });
+        setTimeout(() => this.removeBuddy(), 700);
     }
 
     applyDirectionClass() {
@@ -780,7 +780,7 @@ class AiBuddyPlugin extends Plugin {
             if (!this.buddyEl || !this.settings.emotionsEnabled) return;
             if (this.chatEl?.hasClass('is-open')) return;
             if (this._isIdle && Math.random() < 0.5) {
-                this.triggerEmotion('lookAround', { duration: 2000, animationMs: 1700, force: true });
+                this.triggerEmotion('lookAround', { duration: 3400, animationMs: 3100, force: true });
             }
         }, 50000);
     }
@@ -905,11 +905,11 @@ class AiBuddyPlugin extends Plugin {
                 this._recentDrags = (this._recentDrags || []).filter(t => Date.now() - t < 12000);
                 this._recentDrags.push(Date.now());
                 if (this._recentDrags.length >= 3) {
-                    this.triggerEmotion('angry', { animationMs: 500, duration: 2500 });
+                    this.triggerEmotion('angry', { animationMs: 1700, duration: 3500 });
                     this._recentDrags = [];
                 } else if (this._recentDrags.length === 2 && Math.random() < 0.4) {
                     // Occasional happy/excited on normal drag around
-                    this.triggerEmotion(Math.random() < 0.5 ? 'happy' : 'excited', { silent: true, animationMs: 600 });
+                    this.triggerEmotion(Math.random() < 0.5 ? 'happy' : 'excited', { silent: true, animationMs: 1400 });
                 }
             }
 
@@ -977,7 +977,7 @@ class AiBuddyPlugin extends Plugin {
                 // Auto-dismissed with a pending tip still unread → disappointed
                 if (this.pendingTip) {
                     this.pendingTip = null;
-                    this.triggerEmotion('disappoint', { animationMs: 900, duration: 2800 });
+                    this.triggerEmotion('disappoint', { animationMs: 1800, duration: 3500 });
                 }
             }, duration);
         }
@@ -1416,7 +1416,7 @@ class AiBuddyPlugin extends Plugin {
         this._chatHadMessages = true;
         this.registerBuddyInteraction();
         // Longer messages feel more engaged → excited; short ones → happy
-        this.triggerEmotion(text.length > 60 ? 'excited' : 'happy', { silent: true, animationMs: 600 });
+        this.triggerEmotion(text.length > 60 ? 'excited' : 'happy', { silent: true, animationMs: 1400 });
         this.isThinking = true;
         this.renderMessages();
 
@@ -1441,11 +1441,11 @@ class AiBuddyPlugin extends Plugin {
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: reply });
             // Occasional happy reaction on successful reply (30% chance, silent)
-            if (Math.random() < 0.3) this.triggerEmotion('happy', { silent: true, animationMs: 600 });
+            if (Math.random() < 0.3) this.triggerEmotion('happy', { silent: true, animationMs: 1400 });
         } catch (err) {
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: `Hmm, something went wrong: ${err.message}` });
-            this.triggerEmotion('angry', { silent: true, animationMs: 500 });
+            this.triggerEmotion('angry', { silent: true, animationMs: 1700 });
         }
 
         this.isThinking = false;
@@ -1523,7 +1523,7 @@ class AiBuddyPlugin extends Plugin {
         this.buddyEl?.addClass('chat-open');
         this.renderMessages();
         this.ensureChatFits();
-        this.triggerEmotion(wasPending ? 'excited' : 'happy', { silent: true, animationMs: 600 });
+        this.triggerEmotion(wasPending ? 'excited' : 'happy', { silent: true, animationMs: 1400 });
         setTimeout(() => this.textareaEl?.focus(), 100);
     }
 
@@ -1609,10 +1609,10 @@ class AiBuddyPlugin extends Plugin {
         if (openedAt > 0) {
             if (!hadMessages && openDuration < 2000) {
                 // Opened and dismissed in <2s without saying anything → annoyed
-                this.triggerEmotion('angry', { animationMs: 500, duration: 2800 });
+                this.triggerEmotion('angry', { animationMs: 1700, duration: 3500 });
             } else if (!hadMessages && openDuration >= 2000) {
                 // Opened, looked, left without asking → disappointed
-                this.triggerEmotion('disappoint', { animationMs: 900, duration: 2800 });
+                this.triggerEmotion('disappoint', { animationMs: 1800, duration: 3500 });
             }
         }
         this._chatOpenedAt = 0;

@@ -146,9 +146,10 @@
   80%       { transform: translateX(4px)  rotate(4deg);  }
 }
 @keyframes ai-buddy-disappoint-sink {
-  0%   { transform: translateY(0)   rotate(0);   }
-  50%  { transform: translateY(6px) rotate(-4deg); }
-  100% { transform: translateY(0)   rotate(0);   }
+  0%   { transform: translateY(0)   rotate(0);     }
+  25%  { transform: translateY(6px) rotate(-4deg); }
+  75%  { transform: translateY(8px) rotate(-6deg); }
+  100% { transform: translateY(0)   rotate(0);     }
 }
 @keyframes ai-buddy-excited-spin {
   0%   { transform: scale(1)    rotate(0);    }
@@ -161,13 +162,13 @@
   50%       { transform: scale(1.03); }
 }
 
-.ai-buddy-root.emotion-emerge     .ai-buddy-avatar-wrapper { animation: ai-buddy-emerge 0.55s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.ai-buddy-root.emotion-disappear  .ai-buddy-avatar-wrapper { animation: ai-buddy-disappear 0.4s ease-in forwards; }
-.ai-buddy-root.emotion-lookAround .ai-buddy-avatar-wrapper { animation: ai-buddy-look-around 1.6s ease-in-out; }
-.ai-buddy-root.emotion-happy      .ai-buddy-avatar-wrapper { animation: ai-buddy-happy-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.ai-buddy-root.emotion-angry      .ai-buddy-avatar-wrapper { animation: ai-buddy-angry-shake 0.5s ease-in-out; filter: drop-shadow(0 4px 12px rgba(239, 68, 68, 0.5)); }
-.ai-buddy-root.emotion-disappoint .ai-buddy-avatar-wrapper { animation: ai-buddy-disappoint-sink 0.8s ease-in-out; filter: drop-shadow(0 4px 12px rgba(100, 116, 139, 0.4)); }
-.ai-buddy-root.emotion-excited    .ai-buddy-avatar-wrapper { animation: ai-buddy-excited-spin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); filter: drop-shadow(0 6px 18px rgba(var(--buddy-primary-light), 0.75)); }
+.ai-buddy-root.emotion-emerge     .ai-buddy-avatar-wrapper { animation: ai-buddy-emerge 1.0s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.ai-buddy-root.emotion-disappear  .ai-buddy-avatar-wrapper { animation: ai-buddy-disappear 0.6s ease-in forwards; }
+.ai-buddy-root.emotion-lookAround .ai-buddy-avatar-wrapper { animation: ai-buddy-look-around 3s ease-in-out forwards; }
+.ai-buddy-root.emotion-happy      .ai-buddy-avatar-wrapper { animation: ai-buddy-happy-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 2; }
+.ai-buddy-root.emotion-angry      .ai-buddy-avatar-wrapper { animation: ai-buddy-angry-shake 0.5s ease-in-out 3; filter: drop-shadow(0 4px 12px rgba(239, 68, 68, 0.5)); }
+.ai-buddy-root.emotion-disappoint .ai-buddy-avatar-wrapper { animation: ai-buddy-disappoint-sink 1.6s ease-in-out forwards; filter: drop-shadow(0 4px 12px rgba(100, 116, 139, 0.4)); }
+.ai-buddy-root.emotion-excited    .ai-buddy-avatar-wrapper { animation: ai-buddy-excited-spin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 2; filter: drop-shadow(0 6px 18px rgba(var(--buddy-primary-light), 0.75)); }
 .ai-buddy-root.emotion-idle       .ai-buddy-avatar-wrapper { animation: ai-buddy-idle-breathe 4s ease-in-out infinite; }
 
 /* ── Tip button (above avatar) ───────────────────────────────── */

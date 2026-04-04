@@ -1,6 +1,6 @@
 'use strict';
 
-const { Plugin, PluginSettingTab, Setting, requestUrl, MarkdownView, MarkdownRenderer, Component } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, Menu, requestUrl, MarkdownView, MarkdownRenderer, Component } = require('obsidian');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,9 @@ const DEFAULT_SETTINGS = {
     tipPrompt: `Give a short, insightful observation or question about the note. Be specific — reference actual content.`,
     chatDirection: 'above',           // 'above' | 'below'
     showNameTag: true,               // show/hide name below avatar
-    avatarPath: '',                  // vault-relative path or URL to custom avatar image (GIF/PNG/etc), empty = default SVG
+    avatarPath: '',                  // DEPRECATED — migrated to emotionAvatars.default
+    avatarPreset: 'custom',          // 'custom' | 'gemmy' | ... (see AVATAR_PRESETS)
+    emotionAvatars: {},              // { default, emerge, disappear, idle, lookAround, happy, angry, disappoint, excited } → paths/URLs
     gifSpeed: 1.0,                   // GIF playback speed multiplier (0–2, 0 = paused)
     savedPosition: null,             // null = default corner; {fromRight, fromBottom} when dragged
     theme: 'purple',                 // visual color theme (see THEMES below)
@@ -42,6 +44,35 @@ const THEMES = {
     candy:   { label: 'Candy',            primary: '217, 70, 239',  light: '232, 121, 249', pale: '240, 171, 252', dark: '162, 28, 175'  },
     mono:    { label: 'Monochrome',       primary: '100, 116, 139', light: '148, 163, 184', pale: '203, 213, 225', dark: '51, 65, 85'    },
     gold:    { label: 'Gold',             primary: '234, 179, 8',   light: '250, 204, 21',  pale: '253, 224, 71',  dark: '161, 98, 7'    },
+};
+
+// ─── Avatar Presets ───────────────────────────────────────────────────────────
+// Paths marked as `bundled: true` are resolved relative to the plugin's install
+// directory (so we can ship art with the plugin). Custom user paths are treated
+// as vault-relative paths or absolute URLs.
+
+const AVATAR_PRESETS = {
+    custom: {
+        label:   'Custom (enter paths manually)',
+        bundled: false,
+        paths:   {},
+    },
+    gemmy: {
+        label:   'Gemmy (by ericaxu & Rigmarole)',
+        bundled: true,
+        paths: {
+            default:    'Gemmy/gemmy_idle.gif',
+            emerge:     'Gemmy/gemmy_emerge.gif',
+            disappear:  'Gemmy/gemmy_disappear.gif',
+            idle:       'Gemmy/gemmy_idle.gif',
+            lookAround: 'Gemmy/gemmy_lookAround.gif',
+            happy:      'Gemmy/gemmy_pop.gif',
+            angry:      'Gemmy/gemmy_angry.gif',
+            disappoint: 'Gemmy/gemmy_disappoint.gif',
+            excited:    'Gemmy/gemmy_pop.gif',
+        },
+        credit: 'Gemmy sprites © ericaxu & Rigmarole — see github.com/ericaxu/gemmy',
+    },
 };
 
 // ─── Emotions ─────────────────────────────────────────────────────────────────
@@ -122,17 +153,18 @@ class GifPlayer {
         this._timer  = null;
     }
 
-    async load(src, fetcher) {
+    async load(src, fetcher, onError) {
         try {
             const data = await fetcher(src);
             this.frames = GifPlayer.parse(data);
-            if (this.frames.length === 0) return;
+            if (this.frames.length === 0) { onError?.(); return; }
             this.canvas.width  = this.frames[0].w;
             this.canvas.height = this.frames[0].h;
             this._active = true;
             this._tick();
         } catch (e) {
             console.warn('AI Buddy: GIF load failed', e);
+            onError?.();
         }
     }
 
@@ -309,6 +341,18 @@ class AiBuddyPlugin extends Plugin {
         });
 
         this.addCommand({
+            id: 'show-ai-buddy',
+            name: 'Show AI Buddy',
+            callback: () => this.showBuddy(),
+        });
+
+        this.addCommand({
+            id: 'hide-ai-buddy',
+            name: 'Hide AI Buddy',
+            callback: () => this.hideBuddy(),
+        });
+
+        this.addCommand({
             id: 'reset-ai-buddy-position',
             name: 'Reset AI Buddy position',
             callback: () => {
@@ -342,6 +386,9 @@ class AiBuddyPlugin extends Plugin {
         }));
 
         this.app.workspace.onLayoutReady(() => {
+            // Ensure bundled preset assets are downloaded (no-op if present)
+            const preset = AVATAR_PRESETS[this.settings.avatarPreset];
+            if (preset?.bundled) this.ensurePresetAssets(this.settings.avatarPreset);
             if (this.settings.showBuddy) this.createBuddy();
         });
     }
@@ -386,29 +433,8 @@ class AiBuddyPlugin extends Plugin {
 
         // Avatar wrapper
         const avatarWrapper = avatarSection.createEl('div', { cls: 'ai-buddy-avatar-wrapper' });
-        if (this.settings.avatarPath) {
-            const isUrl = /^https?:\/\//i.test(this.settings.avatarPath);
-            const src   = isUrl
-                ? this.settings.avatarPath
-                : this.app.vault.adapter.getResourcePath(this.settings.avatarPath);
-            const isGif = /\.gif(\?.*)?$/i.test(this.settings.avatarPath);
-            if (isGif) {
-                // Canvas-based player so we can control playback speed
-                const canvas = avatarWrapper.createEl('canvas');
-                canvas.style.cssText = 'width:64px;height:64px;border-radius:50%;';
-                this._gifPlayer = new GifPlayer(canvas, this.settings.gifSpeed ?? 1.0);
-                this._gifPlayer.load(src, (url) => this._fetchGifData(url));
-            } else {
-                const img = avatarWrapper.createEl('img', {
-                    cls: 'ai-buddy-custom-avatar',
-                    attr: { src, width: '64', height: '64' },
-                });
-                img.style.borderRadius = '50%';
-                img.style.objectFit = 'cover';
-            }
-        } else {
-            avatarWrapper.innerHTML = BUDDY_SVG;
-        }
+        this.avatarWrapperEl = avatarWrapper;
+        this._renderAvatar(this.settings.emotionAvatars?.default || '');
 
         // Name tag (conditionally shown)
         this.nameTagEl = avatarSection.createEl('div', {
@@ -425,6 +451,43 @@ class AiBuddyPlugin extends Plugin {
         const wasDrag = this.setupDrag(avatarWrapper);
         avatarWrapper.addEventListener('click', () => {
             if (!wasDrag()) this.toggleChat();
+        });
+
+        // Right-click context menu
+        avatarWrapper.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const menu = new Menu();
+            menu.addItem(item => item
+                .setTitle(`Hide ${this.settings.buddyName}`)
+                .setIcon('eye-off')
+                .onClick(() => this.hideBuddy()));
+            menu.addItem(item => item
+                .setTitle('Reset position')
+                .setIcon('move')
+                .onClick(() => {
+                    this.settings.savedPosition = null;
+                    this.saveSettings();
+                    this.updateBuddyPosition();
+                }));
+            menu.addSeparator();
+            menu.addItem(item => item
+                .setTitle('Open chat')
+                .setIcon('message-square')
+                .onClick(() => this.openChat()));
+            menu.addItem(item => item
+                .setTitle('Get a tip')
+                .setIcon('lightbulb')
+                .onClick(() => this.showProactiveTip(true)));
+            menu.addSeparator();
+            menu.addItem(item => item
+                .setTitle('Open settings')
+                .setIcon('settings')
+                .onClick(() => {
+                    this.app.setting.open();
+                    this.app.setting.openTabById(this.manifest.id);
+                }));
+            menu.showAtMouseEvent(e);
         });
 
         // Animations
@@ -449,14 +512,60 @@ class AiBuddyPlugin extends Plugin {
         this.startIdleWatcher();
     }
 
+    // Render an avatar image into the avatar wrapper. Clears the previous
+    // avatar and any running GIF player. Empty path falls back to the built-in SVG.
+    _renderAvatar(path) {
+        const wrapper = this.avatarWrapperEl;
+        if (!wrapper) return;
+
+        // Tear down any previous GIF player + clear DOM
+        this._gifPlayer?.destroy();
+        this._gifPlayer = null;
+        this._currentAvatarPath = path || '';
+        wrapper.empty();
+
+        if (!path) {
+            wrapper.innerHTML = BUDDY_SVG;
+            return;
+        }
+
+        const isUrl = /^https?:\/\//i.test(path);
+        const src   = isUrl ? path : this.app.vault.adapter.getResourcePath(path);
+        const isGif = /\.gif(\?.*)?$/i.test(path);
+
+        if (isGif) {
+            const canvas = wrapper.createEl('canvas');
+            canvas.style.cssText = 'width:64px;height:64px;border-radius:50%;';
+            this._gifPlayer = new GifPlayer(canvas, this.settings.gifSpeed ?? 1.0);
+            this._gifPlayer.load(src, (url) => this._fetchGifData(url, path), () => {
+                // Fall back to built-in SVG on load failure
+                canvas.remove();
+                wrapper.innerHTML = BUDDY_SVG;
+            });
+        } else {
+            const img = wrapper.createEl('img', {
+                cls: 'ai-buddy-custom-avatar',
+                attr: { src, width: '64', height: '64' },
+            });
+            img.style.borderRadius = '50%';
+            img.style.objectFit = 'cover';
+            // Fall back to built-in SVG if the image fails to load
+            img.addEventListener('error', () => {
+                img.remove();
+                wrapper.innerHTML = BUDDY_SVG;
+            });
+        }
+    }
+
     // Fetch GIF bytes — uses requestUrl (bypasses CORS) for remote URLs,
-    // readBinary for vault-local paths.
-    async _fetchGifData(src) {
+    // readBinary for vault-local paths. `vaultPath` is the original path we're
+    // loading (passed through since `src` may be a resource URL we can't re-parse).
+    async _fetchGifData(src, vaultPath) {
         if (/^https?:\/\//i.test(src)) {
             const resp = await requestUrl({ url: src, method: 'GET' });
             return new Uint8Array(resp.arrayBuffer);
         }
-        const buf = await this.app.vault.adapter.readBinary(this.settings.avatarPath);
+        const buf = await this.app.vault.adapter.readBinary(vaultPath || this._currentAvatarPath);
         return new Uint8Array(buf);
     }
 
@@ -486,26 +595,84 @@ class AiBuddyPlugin extends Plugin {
         this.chatEl = null;
         this.bubbleTextEl = null;
         this.nameTagEl = null;
+        this.avatarWrapperEl = null;
+        this.tipBtnEl = null;
     }
 
     toggleBuddy() {
-        if (this.buddyEl) {
-            this.settings.showBuddy = false;
-            this.saveSettings();
-            // Play disappear animation first, then remove
-            this.triggerEmotion('disappear', { duration: 1200, animationMs: 400 });
-            setTimeout(() => this.removeBuddy(), 400);
-        } else {
-            this.settings.showBuddy = true;
-            this.saveSettings();
-            this.createBuddy();
-        }
+        this.buddyEl ? this.hideBuddy() : this.showBuddy();
+    }
+
+    showBuddy() {
+        if (this.buddyEl) return;
+        this.settings.showBuddy = true;
+        this.saveSettings();
+        this.createBuddy();
+    }
+
+    hideBuddy() {
+        if (!this.buddyEl) return;
+        this.settings.showBuddy = false;
+        this.saveSettings();
+        // Play disappear animation first, then remove
+        this.triggerEmotion('disappear', { duration: 1200, animationMs: 400 });
+        setTimeout(() => this.removeBuddy(), 400);
     }
 
     applyDirectionClass() {
         if (!this.buddyEl) return;
         this.buddyEl.removeClass('chat-direction-above', 'chat-direction-below');
         this.buddyEl.addClass(`chat-direction-${this.settings.chatDirection}`);
+    }
+
+    // Resolve an avatar preset's paths and write them into emotionAvatars.
+    // For bundled presets, paths are prefixed with the plugin's install dir
+    // (e.g. ".obsidian/plugins/ai-buddy/Gemmy/gemmy_idle.gif") so the vault
+    // adapter can serve them directly.
+    applyAvatarPreset(presetKey) {
+        const preset = AVATAR_PRESETS[presetKey];
+        if (!preset) return;
+        this.settings.avatarPreset = presetKey;
+        if (presetKey === 'custom') {
+            // Leave user's existing paths alone
+            return;
+        }
+        const base = preset.bundled ? `${this.manifest.dir}/` : '';
+        const out  = {};
+        for (const [emotion, relPath] of Object.entries(preset.paths)) {
+            out[emotion] = `${base}${relPath}`;
+        }
+        this.settings.emotionAvatars = out;
+        // Kick off asset download in the background (no-op if already present)
+        if (preset.bundled) this.ensurePresetAssets(presetKey);
+    }
+
+    // Download a bundled preset's asset files from the GitHub release if they
+    // aren't already present in the plugin folder. Release assets are flat,
+    // so each file's URL is https://.../releases/download/VERSION/FILENAME.
+    async ensurePresetAssets(presetKey) {
+        const preset = AVATAR_PRESETS[presetKey];
+        if (!preset?.bundled) return;
+        const adapter = this.app.vault.adapter;
+        const version = this.manifest.version;
+        const author  = this.manifest.author;
+        const repo    = this.manifest.id === 'ai-buddy' ? 'AI-Buddy' : this.manifest.id;
+
+        const unique = [...new Set(Object.values(preset.paths))];
+        for (const relPath of unique) {
+            const fullPath = `${this.manifest.dir}/${relPath}`;
+            try {
+                if (await adapter.exists(fullPath)) continue;
+                const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
+                if (dir && !(await adapter.exists(dir))) await adapter.mkdir(dir);
+                const filename = relPath.split('/').pop();
+                const url = `https://github.com/${author}/${repo}/releases/download/${version}/${filename}`;
+                const resp = await requestUrl({ url, method: 'GET' });
+                await adapter.writeBinary(fullPath, resp.arrayBuffer);
+            } catch (e) {
+                console.warn(`AI Buddy: failed to fetch preset asset ${relPath}`, e);
+            }
+        }
     }
 
     applyTheme() {
@@ -544,10 +711,20 @@ class AiBuddyPlugin extends Plugin {
             ? msgs[Math.floor(Math.random() * msgs.length)].replace(/\{name\}/g, this.settings.buddyName)
             : '';
 
+        // Check for a custom avatar for this emotion
+        const emotionAvatars  = this.settings.emotionAvatars || {};
+        const emotionPath     = emotionAvatars[key] || '';
+        const defaultPath     = emotionAvatars.default || '';
+        const hasEmotionAsset = !!emotionPath && emotionPath !== defaultPath;
+
         // Reset animation class (force reflow so same-key retrigger works)
         for (const k of Object.keys(DEFAULT_EMOTIONS)) this.buddyEl.removeClass(`emotion-${k}`);
         void this.buddyEl.offsetWidth;
-        this.buddyEl.addClass(`emotion-${key}`);
+        // If we have a dedicated asset, the GIF IS the animation — skip CSS transforms
+        if (!hasEmotionAsset) this.buddyEl.addClass(`emotion-${key}`);
+
+        // Swap avatar to emotion-specific art if provided
+        if (hasEmotionAsset) this._renderAvatar(emotionPath);
 
         // Show bubble unless explicitly silent or no message available
         if (msg && !opts.silent) {
@@ -563,8 +740,15 @@ class AiBuddyPlugin extends Plugin {
             const ms = opts.animationMs ?? 1800;
             this._emotionTimer = setTimeout(() => {
                 this.buddyEl?.removeClass(`emotion-${key}`);
-                // If we're still idle, restore the idle animation
-                if (this._isIdle) this.buddyEl?.addClass('emotion-idle');
+                // Restore default avatar (or idle avatar if still idle)
+                if (hasEmotionAsset) {
+                    const restorePath = this._isIdle
+                        ? (emotionAvatars.idle || defaultPath)
+                        : defaultPath;
+                    this._renderAvatar(restorePath);
+                }
+                // If we're still idle, restore the idle animation (only when no custom idle asset)
+                if (this._isIdle && !emotionAvatars.idle) this.buddyEl?.addClass('emotion-idle');
             }, ms);
         }
     }
@@ -1440,6 +1624,14 @@ class AiBuddyPlugin extends Plugin {
     async loadSettings() {
         const saved = await this.loadData() || {};
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        if (!this.settings.emotionAvatars) this.settings.emotionAvatars = {};
+
+        // Migrate: legacy single `avatarPath` → emotionAvatars.default
+        if (this.settings.avatarPath && !this.settings.emotionAvatars.default) {
+            this.settings.emotionAvatars.default = this.settings.avatarPath;
+            this.settings.avatarPath = '';
+            await this.saveData(this.settings);
+        }
 
         // Load API key from Obsidian secret storage (sync API, since 1.11.4)
         this._apiKey = this.app.secretStorage.getSecret(SECRET_KEY) || '';
@@ -1495,9 +1687,7 @@ class AiBuddySettingTab extends PluginSettingTab {
             .addToggle(t => t
                 .setValue(this.plugin.settings.showBuddy)
                 .onChange(async v => {
-                    this.plugin.settings.showBuddy = v;
-                    await this.plugin.saveSettings();
-                    v ? this.plugin.createBuddy() : this.plugin.removeBuddy();
+                    v ? this.plugin.showBuddy() : this.plugin.hideBuddy();
                 }));
 
         new Setting(containerEl)
@@ -1526,21 +1716,55 @@ class AiBuddySettingTab extends PluginSettingTab {
                     }
                 }));
 
+        // ── Avatar preset ──────────────────────────────────────────
         new Setting(containerEl)
-            .setName('Custom avatar')
-            .setDesc('Vault-relative path (e.g. attachments/pip.gif) or a direct URL (e.g. a Giphy/Tenor .gif link). Leave empty to use the default robot.')
-            .addText(t => t
-                .setPlaceholder('attachments/pip.gif')
-                .setValue(this.plugin.settings.avatarPath)
-                .onChange(async v => {
-                    this.plugin.settings.avatarPath = v.trim();
-                    await this.plugin.saveSettings();
-                    // Rebuild buddy so avatar updates immediately
-                    if (this.plugin.buddyEl) {
-                        this.plugin.removeBuddy();
-                        this.plugin.createBuddy();
-                    }
-                }));
+            .setName('Avatar preset')
+            .setDesc('Pick a pre-built avatar set, or choose Custom to enter your own paths per emotion below.')
+            .addDropdown(d => {
+                for (const [key, p] of Object.entries(AVATAR_PRESETS)) d.addOption(key, p.label);
+                d.setValue(this.plugin.settings.avatarPreset || 'custom')
+                    .onChange(async v => {
+                        this.plugin.applyAvatarPreset(v);
+                        await this.plugin.saveSettings();
+                        if (this.plugin.buddyEl) {
+                            this.plugin._renderAvatar(this.plugin.settings.emotionAvatars.default || '');
+                        }
+                        this.display();   // refresh to show new paths
+                    });
+            });
+
+        const activePreset = AVATAR_PRESETS[this.plugin.settings.avatarPreset || 'custom'];
+        if (activePreset?.credit) {
+            containerEl.createEl('p', {
+                cls: 'setting-item-description',
+                text: activePreset.credit,
+            }).style.marginBottom = '8px';
+        }
+
+        // Per-emotion avatar paths
+        const avatarEmotions = [
+            ['default', 'Default (used when no emotion is active)'],
+            ...Object.entries(DEFAULT_EMOTIONS).map(([k, v]) => [k, v.label]),
+        ];
+        for (const [key, label] of avatarEmotions) {
+            new Setting(containerEl)
+                .setName(`${label} avatar`)
+                .setDesc(key === 'default'
+                    ? 'Vault path (e.g. attachments/pip.gif) or https URL. Leave empty for the built-in robot.'
+                    : `Shown during ${label.toLowerCase()}. Leave empty to reuse the default.`)
+                .addText(t => t
+                    .setPlaceholder(key === 'default' ? 'attachments/pip.gif' : '(reuses default)')
+                    .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
+                    .onChange(async v => {
+                        this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
+                        this.plugin.settings.emotionAvatars[key] = v.trim();
+                        this.plugin.settings.avatarPreset = 'custom';
+                        await this.plugin.saveSettings();
+                        if (key === 'default' && this.plugin.buddyEl) {
+                            this.plugin._renderAvatar(v.trim());
+                        }
+                    }));
+        }
 
         new Setting(containerEl)
             .setName('GIF playback speed')

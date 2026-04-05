@@ -1715,8 +1715,30 @@ class AiBuddyPlugin extends Plugin {
         this.renderMessages();
     }
 
+    // Prompt fields can be either raw text OR a vault-relative .md file path.
+    // When the value looks like a .md path AND the file exists, read its
+    // contents; otherwise treat the value as literal prompt text.
+    async _resolvePrompt(value) {
+        if (!value) return value;
+        const trimmed = value.trim();
+        // Quick rejection: multi-line or too long to be a path
+        if (trimmed.includes('\n') || trimmed.length > 500) return value;
+        if (!/\.md$/i.test(trimmed)) return value;
+        try {
+            const file = this.app.vault.getAbstractFileByPath(trimmed);
+            if (file && typeof file.stat === 'object') {
+                const body = await this.app.vault.cachedRead(file);
+                // Strip YAML frontmatter so prompts written as notes don't leak it
+                return body.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+            }
+        } catch (e) {
+            console.warn('AI Buddy: failed to read prompt file', trimmed, e);
+        }
+        return value;
+    }
+
     async generateTip(filename, content) {
-        const tipInstruction = this.settings.tipPrompt || DEFAULT_SETTINGS.tipPrompt;
+        const tipInstruction = await this._resolvePrompt(this.settings.tipPrompt || DEFAULT_SETTINGS.tipPrompt);
         const prompt = `The user is viewing a note called "${filename}". Snippet:\n\n${content}\n\nInstruction: ${tipInstruction}\n\nRespond with a JSON object ONLY — no other text:\n{"tip": "1-2 sentence tip following the instruction above", "quote": "the exact phrase from the note you are commenting on (under 80 chars), or null if your tip is general"}`;
         const sys = `You are ${this.settings.buddyName}, a friendly vault assistant. Always respond with valid JSON only.`;
         const messages = [{ role: 'user', content: prompt }];
@@ -1877,9 +1899,10 @@ class AiBuddyPlugin extends Plugin {
                 noteContext = `\n\n---\nCurrent note: "${activeFile.basename}"\n${content.slice(0, 2500)}${content.length > 2500 ? '\n[...truncated]' : ''}`;
             }
             const messages = this.chatMessages.map(m => ({ role: m.role, content: m.content }));
+            const systemPrompt = await this._resolvePrompt(this.settings.systemPrompt);
             const reply = this.settings.apiProvider === 'claude'
-                ? await this.callClaude(this.settings.systemPrompt + noteContext, messages)
-                : await this.callOpenAI(this.settings.systemPrompt + noteContext, messages);
+                ? await this.callClaude(systemPrompt + noteContext, messages)
+                : await this.callOpenAI(systemPrompt + noteContext, messages);
 
             thinkEl.remove();
             this.chatMessages.push({ role: 'assistant', content: reply });
@@ -2431,7 +2454,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('System prompt')
-            .setDesc('Customize your buddy\'s personality. Note context is appended automatically.')
+            .setDesc('Customize your buddy\'s personality. Note context is appended automatically. You can also enter a vault path to a .md file (e.g. prompts/system.md) and its contents will be used as the prompt — YAML frontmatter is stripped.')
             .addTextArea(t => {
                 t.setValue(this.plugin.settings.systemPrompt)
                     .onChange(async v => { this.plugin.settings.systemPrompt = v; await this.plugin.saveSettings(); });
@@ -2443,7 +2466,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Proactive tip instruction')
-            .setDesc(`Tell ${this.plugin.settings.buddyName} what kind of tips to give when it pops up automatically. The note content is always included.`)
+            .setDesc(`Tell ${this.plugin.settings.buddyName} what kind of tips to give when it pops up automatically. The note content is always included. Also accepts a vault path to a .md file (e.g. prompts/tip.md).`)
             .addTextArea(t => {
                 t.setValue(this.plugin.settings.tipPrompt || DEFAULT_SETTINGS.tipPrompt)
                     .onChange(async v => { this.plugin.settings.tipPrompt = v; await this.plugin.saveSettings(); });

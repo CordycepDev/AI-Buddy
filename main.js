@@ -1074,23 +1074,28 @@ class AiBuddyPlugin extends Plugin {
         clearInterval(this._idleTimer);
         clearInterval(this._lookAroundTimer);
         this._lastInteraction = Date.now();
-        // Every 15s check if idle for > 60s; go idle silently
+        // Idle threshold + look-around cadence both track the user's
+        // "Tip interval" setting so the single slider controls how chatty
+        // the buddy is overall. Idle fires after intervalMinutes of
+        // no interaction; lookAround fires on roughly the same cadence.
+        const intervalMs = Math.max(1, this.settings.tipIntervalMinutes || 8) * 60 * 1000;
+        const checkMs    = Math.max(5000, Math.min(30000, intervalMs / 4));
         this._idleTimer = setInterval(() => {
             if (!this.buddyEl || !this.settings.emotionsEnabled) return;
             if (this.chatEl?.hasClass('is-open')) return;
-            const idleSecs = (Date.now() - (this._lastInteraction || 0)) / 1000;
-            if (idleSecs > 60 && !this._isIdle) {
+            const idleMs = Date.now() - (this._lastInteraction || 0);
+            if (idleMs > intervalMs && !this._isIdle) {
                 this.triggerEmotion('idle', { silent: true, force: true });
             }
-        }, 15000);
-        // While idle, occasionally look around (~every 50s, 50% chance)
+        }, checkMs);
+        // While idle, occasionally look around (50% chance per interval tick)
         this._lookAroundTimer = setInterval(() => {
             if (!this.buddyEl || !this.settings.emotionsEnabled) return;
             if (this.chatEl?.hasClass('is-open')) return;
             if (this._isIdle && Math.random() < 0.5) {
                 this.triggerEmotion('lookAround', { duration: 3400, animationMs: 3100, force: true });
             }
-        }, 50000);
+        }, intervalMs);
     }
 
     // ─── Positioning ───────────────────────────────────────────────────────────
@@ -2196,8 +2201,8 @@ class AiBuddySettingTab extends PluginSettingTab {
         }
 
         new Setting(containerEl)
-            .setName('Tip interval (minutes)')
-            .setDesc(`How often ${this.plugin.settings.buddyName} checks in automatically.`)
+            .setName('Tip / idle interval (minutes)')
+            .setDesc(`How often ${this.plugin.settings.buddyName} checks in — controls both the proactive-tip cadence and how long he waits before drifting into his idle/look-around behavior.`)
             .addSlider(s => s
                 .setLimits(2, 30, 1)
                 .setValue(this.plugin.settings.tipIntervalMinutes)
@@ -2205,6 +2210,10 @@ class AiBuddySettingTab extends PluginSettingTab {
                 .onChange(async v => {
                     this.plugin.settings.tipIntervalMinutes = v;
                     await this.plugin.saveSettings();
+                    // Restart timers with the new cadence
+                    clearTimeout(this.plugin.tipTimer);
+                    if (this.plugin.settings.proactiveTips && this.plugin.buddyEl) this.plugin.startTipTimer();
+                    if (this.plugin.buddyEl) this.plugin.startIdleWatcher();
                 }));
 
         // ── Personality ─────────────────────────────────────────

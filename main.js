@@ -2084,6 +2084,20 @@ class AiBuddyPlugin extends Plugin {
             await this.saveData(this.settings);
         }
 
+        // Migrate: if the active preset ships canned emotion messages (Clippy)
+        // and the user has none yet, populate them. Existing custom messages
+        // are preserved on a per-key basis.
+        const activePreset = AVATAR_PRESETS[this.settings.avatarPreset];
+        if (activePreset?.messages) {
+            const existing = this.settings.emotionMessages || {};
+            const merged = { ...activePreset.messages, ...existing };
+            const changed = Object.keys(merged).length !== Object.keys(existing).length;
+            if (changed) {
+                this.settings.emotionMessages = merged;
+                await this.saveData(this.settings);
+            }
+        }
+
         // Load API key from Obsidian secret storage (sync API, since 1.11.4)
         this._apiKey = this.app.secretStorage.getSecret(SECRET_KEY) || '';
 

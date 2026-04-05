@@ -1,4 +1,7 @@
 # AI Buddy - Obsidian Plugin
+<img width="1702" height="1092" alt="image" src="https://github.com/user-attachments/assets/6167f442-6b98-438f-b61b-abbc490685db" />
+
+
 
 A Clippy-style AI assistant that lives in the corner of your Obsidian vault. Meet **Chip** - a friendly floating robot buddy who can chat, offer proactive tips about your notes, and physically move to the text it's referencing.
 

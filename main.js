@@ -1016,15 +1016,18 @@ class AiBuddyPlugin extends Plugin {
         const emotionAvatars  = this.settings.emotionAvatars || {};
         const emotionPath     = emotionAvatars[key] || '';
         const defaultPath     = emotionAvatars.idle || emotionAvatars.default || '';
+        // Does this emotion need its own swap? (different from the default)
         const hasEmotionAsset = !!emotionPath && emotionPath !== defaultPath;
+        // Is ANY custom avatar in use right now (emotion-specific OR idle/default)?
+        // When yes, skip CSS keyframes — custom art plays as-is, no shrink/bounce/shake.
+        const hasCustomAvatar = !!(emotionPath || defaultPath);
 
         // Reset animation class (force reflow so same-key retrigger works)
         for (const k of Object.keys(DEFAULT_EMOTIONS)) this.buddyEl.removeClass(`emotion-${k}`);
         void this.buddyEl.offsetWidth;
-        // Only apply the CSS keyframe (shrink/bounce/shake/etc.) when the user
-        // has NOT set a custom emotion asset. Custom assets play as-is —
-        // users who supply their own art don't want it squeezed/shaken.
-        if (!hasEmotionAsset) this.buddyEl.addClass(`emotion-${key}`);
+        // Only apply the CSS keyframe when the user is on the built-in SVG Chip
+        // (no custom art anywhere). Custom art never gets squeezed/shaken.
+        if (!hasCustomAvatar) this.buddyEl.addClass(`emotion-${key}`);
 
         // Swap avatar to emotion-specific art if provided
         if (hasEmotionAsset) this._renderAvatar(emotionPath, true);

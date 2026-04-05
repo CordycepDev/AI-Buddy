@@ -13,16 +13,39 @@ A Clippy-style AI assistant that lives in the corner of your Obsidian vault. Mee
 - **Multiple AI providers** - supports Anthropic Claude and OpenAI
 
 ## Multiple Buddies!
-### Clippy
-The original 1997 Microsoft word companion, gif credit to Vjeux
+  <table>
+    <tr>
+      <td valign="middle">
+        <h3>Chip</h3>
+        A cute helpful robot
+      </td>
+      <td align="right" width="160">
+        <img src="https://github.com/user-attachments/assets/06e9ea79-16d8-4562-b92f-bb8199de3f2f" width="120"
+  alt="Chip">
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle">
+        <h3>Clippy</h3>
+        The original 1997 Microsoft Word companion. GIF credit to Vjeux.
+      </td>
+      <td align="right" width="160">
+        <img src="https://github.com/user-attachments/assets/47430aa7-feb8-4ca6-be50-129ff77edd8c" width="120"
+  alt="Clippy">
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle">
+        <h3>Gemmy</h3>
+        The Obsidian.md avatar. Credit to ericaxu and Rigmarole.
+      </td>
+      <td align="right" width="160">
+        <img src="https://github.com/user-attachments/assets/5f89913b-3794-4801-a093-bd2e283ad155" width="120"
+  alt="Gemmy">
+      </td>
+    </tr>
+  </table>
 
-![clippy_emerge_dark](https://github.com/user-attachments/assets/47430aa7-feb8-4ca6-be50-129ff77edd8c)
-
-
-### Gemmy
-The obsidian.md avatar, credit to ericaxu and Rigamarole
-
-![gemmy_pop](https://github.com/user-attachments/assets/5f89913b-3794-4801-a093-bd2e283ad155)
 
 ## Installation
 

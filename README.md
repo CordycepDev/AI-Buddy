@@ -4,15 +4,25 @@ A Clippy-style AI assistant that lives in the corner of your Obsidian vault. Mee
 
 ## Features
 
-- **Floating animated avatar** in the corner of your workspace (draggable)
+- **Floating animated avatar** fully customizable buddy in the corner of your workspace
 - **AI-powered chat** with context from your current note
 - **Proactive tips** - Chip periodically offers observations about what you're working on
 - **Quote location** - Chip moves to the exact text in your note it's commenting on, with a bouncing arrow indicator
-- **Scroll tracking** - Chip sticks to the referenced text as you scroll
 - **Custom avatar** - use your own image or paste a GIF URL (Giphy, Tenor, etc.)
-- **GIF speed control** - adjust animated GIF playback from 0.25x to 4x
-- **Secure API key storage** - uses Obsidian's native secret storage (OS keychain)
+- **GIF speed control** - adjust animated GIF playback from 0x to 2x
 - **Multiple AI providers** - supports Anthropic Claude and OpenAI
+
+## Multiple Buddies!
+### Clippy
+The original 1997 Microsoft word companion, gif credit to Vjeux
+
+![clippy_emerge_dark](https://github.com/user-attachments/assets/47430aa7-feb8-4ca6-be50-129ff77edd8c)
+
+
+### Gemmy
+The obsidian.md avatar, credit to ericaxu and Rigamarole
+
+![gemmy_pop](https://github.com/user-attachments/assets/5f89913b-3794-4801-a093-bd2e283ad155)
 
 ## Installation
 
@@ -20,7 +30,6 @@ A Clippy-style AI assistant that lives in the corner of your Obsidian vault. Mee
 
 1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
 2. Open BRAT settings and click **Add Beta Plugin**
-3. Enter: `CordycepDev/AI-Buddy`
 4. Click **Add Plugin** and enable it
 
 ### Manual Installation
@@ -36,16 +45,30 @@ A Clippy-style AI assistant that lives in the corner of your Obsidian vault. Mee
 2. Add your API key (Claude or OpenAI) - stored securely in your OS keychain
 3. Customize Chip's name, personality, avatar, and tip behavior
 
-## Requirements
+## Showcase
+### Emotions
+Chip has full range of custom emotions and reacts to your actions!
+https://github.com/user-attachments/assets/66d88743-d094-4b5b-812e-8f58562ffbe4
 
-- Obsidian v1.11.4 or higher
-- An API key from Anthropic (Claude) or OpenAI
+### Custom Avatars
+Add any .gif/.png or even a url to a .gif like tenor of Giphy and make your own buddies
 
-## Commands
+https://github.com/user-attachments/assets/df7bb2bc-02b4-412a-9b5c-a5d1ca3b3e80
 
-- **Toggle AI Buddy** - show/hide Chip
-- **Reset AI Buddy position** - snap Chip back to the default corner
-- **Open AI Buddy chat** - open the chat panel
+### Custom Themes and Color Palletes
+
+
+https://github.com/user-attachments/assets/40e9b480-3af4-4ad2-8ddc-fd1fcfb1b223
+
+
+
+https://github.com/user-attachments/assets/a1c9c49e-1585-4ed6-8ba0-af4c37891797
+
+
+
+https://github.com/user-attachments/assets/23d10a3d-1827-4f96-8344-978e7ba8d598
+
+
 
 ## License
 

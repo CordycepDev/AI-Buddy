@@ -121,6 +121,22 @@ const AVATAR_PRESETS = {
         },
         credit: 'Gemmy sprites © ericaxu & Rigmarole — see github.com/ericaxu/gemmy',
     },
+    clippy: {
+        label:   'Clippy (Microsoft Office 97 assistant)',
+        bundled: true,
+        paths: {
+            default:    'Clippy/clippy_idle.gif',
+            emerge:     'Clippy/clippy_emerge.gif',
+            disappear:  'Clippy/clippy_disappear.gif',
+            idle:       'Clippy/clippy_idle.gif',
+            lookAround: 'Clippy/clippy_lookAround.gif',
+            happy:      'Clippy/clippy_happy.gif',
+            angry:      'Clippy/clippy_angry.gif',
+            disappoint: 'Clippy/clippy_disappoint.gif',
+            excited:    'Clippy/clippy_excited.gif',
+        },
+        credit: 'Clippy © Microsoft Corporation. GIFs extracted by Vjeux (blog.vjeux.com/2024/project/clippy-gifs.html) from the original Office 97 assistant.',
+    },
 };
 
 // ─── Emotions ─────────────────────────────────────────────────────────────────
@@ -858,6 +874,11 @@ class AiBuddyPlugin extends Plugin {
         for (const key of Object.keys(VISUAL_STYLES)) this.buddyEl.removeClass(`visual-${key}`);
         const style = VISUAL_STYLES[this.settings.visualStyle] ? this.settings.visualStyle : 'glow';
         this.buddyEl.addClass(`visual-${style}`);
+
+        // Apply avatar-preset class (lets CSS tweak canvas shape etc. per preset)
+        for (const key of Object.keys(AVATAR_PRESETS)) this.buddyEl.removeClass(`preset-${key}`);
+        const presetKey = AVATAR_PRESETS[this.settings.avatarPreset] ? this.settings.avatarPreset : 'custom';
+        this.buddyEl.addClass(`preset-${presetKey}`);
     }
 
     // ─── Emotions ──────────────────────────────────────────────────────────────
@@ -1921,6 +1942,7 @@ class AiBuddySettingTab extends PluginSettingTab {
                         this.plugin.applyAvatarPreset(v);
                         await this.plugin.saveSettings();
                         if (this.plugin.buddyEl) {
+                            this.plugin.applyTheme();   // updates preset-X class
                             this.plugin._renderAvatar(this.plugin.settings.emotionAvatars.default || '');
                         }
                         this.display();   // refresh to show new paths

@@ -15,10 +15,31 @@
   position: absolute;
   bottom: 44px;
   right: 20px;
-  z-index: 500;
+  z-index: 50;
   display: block;
   pointer-events: none;
   font-family: var(--buddy-font);
+  transition: opacity 0.15s ease;
+}
+
+/* Hide the buddy while any Obsidian modal is open (settings, search, etc.) */
+body:has(.modal-container) .ai-buddy-root {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+/* Clippy lives on a paper — show the whole sheet, not a circle crop */
+.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas {
+  border-radius: 4px !important;
+  width: 72px !important;
+  height: 72px !important;
+  background: transparent;
+}
+.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
+  border-radius: 4px !important;
+  width: 72px !important;
+  height: 72px !important;
+  object-fit: contain !important;
 }
 
 .ai-buddy-avatar-section,

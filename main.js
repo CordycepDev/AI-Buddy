@@ -1028,8 +1028,13 @@ class AiBuddyPlugin extends Plugin {
                 console.warn(`AI Buddy: failed to fetch preset asset ${relPath}`, e);
             }
         }
-        // Warm the frame cache so the first emotion swap is instant
-        if (this.buddyEl) this._preloadEmotionAvatars();
+        // Warm the frame cache + re-render the default avatar in case the
+        // initial render happened before downloads completed (preset switch
+        // fires render sync while downloads are async).
+        if (this.buddyEl) {
+            this._preloadEmotionAvatars();
+            this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
+        }
     }
 
     _resolveTheme() {

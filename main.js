@@ -650,6 +650,19 @@ class AiBuddyPlugin extends Plugin {
         // Preload emotion GIFs so avatar swaps during emotions are instant
         this._preloadEmotionAvatars();
 
+        // Watch for Obsidian theme changes (light ↔ dark) so Clippy can swap
+        // to the matching white/black variant.
+        let lastThemeDark = document.body.classList.contains('theme-dark');
+        this._themeObserver = new MutationObserver(() => {
+            const isDark = document.body.classList.contains('theme-dark');
+            if (isDark === lastThemeDark || !this.buddyEl) return;
+            lastThemeDark = isDark;
+            // Re-render the current avatar (default) with the new theme variant
+            this._renderAvatar(this.settings.emotionAvatars?.default || '');
+        });
+        this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        this.register(() => this._themeObserver?.disconnect());
+
         // Trigger emerge emotion (plays animation + shows greeting bubble)
         this.triggerEmotion('emerge', { duration: 5000, animationMs: 2400, force: true });
 
@@ -657,11 +670,23 @@ class AiBuddyPlugin extends Plugin {
         this.startIdleWatcher();
     }
 
+    // Swap Clippy paths to their _dark variant when in dark mode (the Clippy
+    // preset ships two variants per emotion: white-bg and black-bg).
+    _resolveThemedPath(path) {
+        if (!path) return path;
+        const isClippy = /\/Clippy\/clippy_[^_/]+\.gif$/i.test(path);
+        if (!isClippy) return path;
+        const isDark = document.body.classList.contains('theme-dark');
+        if (isDark) return path.replace(/\.gif$/i, '_dark.gif');
+        return path;
+    }
+
     // Render an avatar image into the avatar wrapper. Clears the previous
     // avatar and any running GIF player. Empty path falls back to the built-in SVG.
     // `isEmotion=true` forces a minimum playback speed so emotion GIFs animate
     // even when the user has paused the default/idle GIF via gifSpeed.
-    _renderAvatar(path, isEmotion = false) {
+    _renderAvatar(rawPath, isEmotion = false) {
+        const path = this._resolveThemedPath(rawPath);
         const wrapper = this.avatarWrapperEl;
         if (!wrapper) return;
 
@@ -724,7 +749,15 @@ class AiBuddyPlugin extends Plugin {
     // (no fetch / no LZW decode during the emotion's visible window).
     async _preloadEmotionAvatars() {
         const paths = Object.values(this.settings.emotionAvatars || {}).filter(Boolean);
-        const unique = [...new Set(paths)];
+        // For Clippy GIFs, also preload the _dark variants so theme switches are instant
+        const withVariants = [];
+        for (const p of paths) {
+            withVariants.push(p);
+            if (/\/Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
+                withVariants.push(p.replace(/\.gif$/i, '_dark.gif'));
+            }
+        }
+        const unique = [...new Set(withVariants)];
         for (const path of unique) {
             if (GIF_FRAME_CACHE.has(path)) continue;
             if (!/\.gif(\?.*)?$/i.test(path)) continue;
@@ -841,7 +874,16 @@ class AiBuddyPlugin extends Plugin {
         const author  = this.manifest.author;
         const repo    = this.manifest.id === 'ai-buddy' ? 'AI-Buddy' : this.manifest.id;
 
-        const unique = [...new Set(Object.values(preset.paths))];
+        // Include _dark variants for Clippy (two GIFs per emotion: light + dark bg)
+        const withVariants = [];
+        for (const p of Object.values(preset.paths)) {
+            if (!p) continue;
+            withVariants.push(p);
+            if (/\/Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
+                withVariants.push(p.replace(/\.gif$/i, '_dark.gif'));
+            }
+        }
+        const unique = [...new Set(withVariants)];
         for (const relPath of unique) {
             const fullPath = `${this.manifest.dir}/${relPath}`;
             try {

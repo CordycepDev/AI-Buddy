@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
     showBuddy: true,
     systemPrompt: `You are Chip, a friendly AI assistant living inside the user's Obsidian vault. You help with note-taking, writing, brainstorming, and thinking through ideas. Be warm, concise, and genuinely helpful. When given context about the current note, reference it naturally.`,
     proactiveTips: true,
+    aiTips: false,                   // use AI to generate note-aware tips (requires proactiveTips)
     tipIntervalMinutes: 8,
     tipPrompt: `Give a short, insightful observation or question about the note. Be specific — reference actual content.`,
     chatDirection: 'above',           // 'above' | 'below'
@@ -1348,24 +1349,23 @@ class AiBuddyPlugin extends Plugin {
             const inactiveMins = (Date.now() - this._lastActivity) / 60000;
             if (this._lastActivity > 0 && inactiveMins > 10) return;
         }
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && this._apiKey) {
+        const activeFile    = this.app.workspace.getActiveFile();
+        const wantAiTip     = this.settings.aiTips && this._apiKey && activeFile;
+        if (wantAiTip) {
             try {
                 const content = await this.app.vault.read(activeFile);
                 const { tip, quote } = await this.generateTip(activeFile.basename, content.slice(0, 1000));
                 this.pendingTip = { tip, quote };
                 this.locateQuote(quote);
                 this.showBubble(tip, 8000);
+                return;
             } catch {
-                const tip = PROACTIVE_TIPS[Math.floor(Math.random() * PROACTIVE_TIPS.length)];
-                this.pendingTip = { tip, quote: null };
-                this.showBubble(tip, 6000);
+                // fall through to hard-coded fallback
             }
-        } else {
-            const tip = PROACTIVE_TIPS[Math.floor(Math.random() * PROACTIVE_TIPS.length)];
-            this.pendingTip = { tip, quote: null };
-            this.showBubble(tip, 6000);
         }
+        const tip = PROACTIVE_TIPS[Math.floor(Math.random() * PROACTIVE_TIPS.length)];
+        this.pendingTip = { tip, quote: null };
+        this.showBubble(tip, 6000);
     }
 
     locateQuote(quote) {
@@ -2168,15 +2168,32 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Proactive tips')
-            .setDesc(`${this.plugin.settings.buddyName} will occasionally pop up with a note-related tip.`)
+            .setDesc(`${this.plugin.settings.buddyName} will occasionally pop up with a built-in tip from a hand-written list.`)
             .addToggle(t => t
                 .setValue(this.plugin.settings.proactiveTips)
                 .onChange(async v => {
                     this.plugin.settings.proactiveTips = v;
+                    // AI tips can't be on without proactive tips
+                    if (!v) this.plugin.settings.aiTips = false;
                     await this.plugin.saveSettings();
                     clearTimeout(this.plugin.tipTimer);
                     if (v && this.plugin.buddyEl) this.plugin.startTipTimer();
+                    this.display();   // refresh AI tips enable/disable state
                 }));
+
+        const aiTipSetting = new Setting(containerEl)
+            .setName('AI-generated tips')
+            .setDesc(`When on, tips are generated from the current note's content using your AI provider. Falls back to built-in tips on failure. Requires Proactive tips.`)
+            .addToggle(t => t
+                .setValue(this.plugin.settings.aiTips ?? false)
+                .setDisabled(!this.plugin.settings.proactiveTips)
+                .onChange(async v => {
+                    this.plugin.settings.aiTips = v;
+                    await this.plugin.saveSettings();
+                }));
+        if (!this.plugin.settings.proactiveTips) {
+            aiTipSetting.settingEl.style.opacity = '0.55';
+        }
 
         new Setting(containerEl)
             .setName('Tip interval (minutes)')

@@ -989,8 +989,9 @@ class AiBuddyPlugin extends Plugin {
         if (preset.messages) {
             this.settings.emotionMessages = { ...preset.messages };
         }
-        // Kick off asset download in the background (no-op if already present)
-        if (preset.bundled) this.ensurePresetAssets(presetKey);
+        // NOTE: ensurePresetAssets is NOT called here. Callers that need assets
+        // on-disk must call it explicitly (and await it) so the avatar render
+        // happens AFTER downloads finish.
     }
 
     // Download a bundled preset's asset files from the GitHub release if they
@@ -2203,8 +2204,14 @@ class AiBuddySettingTab extends PluginSettingTab {
                     .onChange(async v => {
                         this.plugin.applyAvatarPreset(v);
                         await this.plugin.saveSettings();
+                        // Apply preset class + clear any existing avatar so the
+                        // user sees SOMETHING happen immediately
+                        if (this.plugin.buddyEl) this.plugin.applyTheme();
+                        // Download bundled assets (idempotent — skips files that exist),
+                        // then render with whichever files are now present
+                        const preset = AVATAR_PRESETS[v];
+                        if (preset?.bundled) await this.plugin.ensurePresetAssets(v);
                         if (this.plugin.buddyEl) {
-                            this.plugin.applyTheme();   // updates preset-X class
                             this.plugin._renderAvatar(this.plugin.settings.emotionAvatars?.idle || this.plugin.settings.emotionAvatars?.default || '');
                         }
                         this.display();   // refresh to show new paths

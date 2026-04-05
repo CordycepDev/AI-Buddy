@@ -45,12 +45,11 @@ body:has(.modal-container) .ai-buddy-root {
     0 2px 6px rgba(0, 0, 0, 0.18);
   image-rendering: auto;
 }
-/* Dark mode: replace Clippy's white background with dark grey via blend mode.
-   The wrapper provides a dark backdrop; mix-blend-mode: darken keeps pixels
-   that are darker than the backdrop (i.e. Clippy himself) and replaces
-   anything lighter (the white paper/sheet) with the dark grey backdrop. */
+/* Dark mode: tint Clippy's white paper with a grey backdrop via multiply.
+   White × grey = grey (matches card), Clippy's colors multiply proportionally
+   so he stays visible just slightly muted. */
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper {
-  background: #3a3a3a;
+  background: #6e6e6e;
   border-radius: 6px;
   width: 72px;
   height: 72px;
@@ -61,7 +60,7 @@ body:has(.modal-container) .ai-buddy-root {
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
   background: transparent !important;
-  mix-blend-mode: darken;
+  mix-blend-mode: multiply;
   box-shadow: none !important;
 }
 /* Hover: lift the card slightly, don't glow */

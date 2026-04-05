@@ -340,6 +340,18 @@ const BUDDY_SVG = `
 // is the expensive part; reusing frames across emotion swaps makes transitions
 // instant so short-lived emotions (angry, happy, etc.) are actually visible.
 const GIF_FRAME_CACHE = new Map();
+const GIF_FRAME_CACHE_MAX = 32;
+
+function cacheGifFrames(key, frames) {
+    // Simple LRU: delete + reinsert so the most-recently-used key sits at the
+    // end, then evict the oldest (first) key when we exceed the cap.
+    if (GIF_FRAME_CACHE.has(key)) GIF_FRAME_CACHE.delete(key);
+    GIF_FRAME_CACHE.set(key, frames);
+    if (GIF_FRAME_CACHE.size > GIF_FRAME_CACHE_MAX) {
+        const oldest = GIF_FRAME_CACHE.keys().next().value;
+        GIF_FRAME_CACHE.delete(oldest);
+    }
+}
 
 class GifPlayer {
     constructor(canvas, speed = 1.0) {
@@ -356,6 +368,8 @@ class GifPlayer {
         // Fast path: we've already parsed this GIF before
         if (cacheKey && GIF_FRAME_CACHE.has(cacheKey)) {
             this.frames = GIF_FRAME_CACHE.get(cacheKey);
+            // Touch the key so LRU eviction keeps the most-recently-used entries
+            cacheGifFrames(cacheKey, this.frames);
             if (this.frames.length === 0) { onError?.(); return; }
             this.canvas.width  = this.frames[0].w;
             this.canvas.height = this.frames[0].h;
@@ -367,7 +381,7 @@ class GifPlayer {
             const data = await fetcher(src);
             this.frames = GifPlayer.parse(data);
             if (this.frames.length === 0) { onError?.(); return; }
-            if (cacheKey) GIF_FRAME_CACHE.set(cacheKey, this.frames);
+            if (cacheKey) cacheGifFrames(cacheKey, this.frames);
             this.canvas.width  = this.frames[0].w;
             this.canvas.height = this.frames[0].h;
             this._active = true;
@@ -439,7 +453,8 @@ class GifPlayer {
                     if (!hasT) pos++;
                     pos++; // block terminator
                 } else {
-                    while (true) { const sz = data[pos++]; if (sz === 0) break; pos += sz; }
+                    while (pos < data.length) { const sz = data[pos++]; if (sz === 0) break; pos += sz; }
+                    if (pos > data.length) break; // truncated stream
                 }
                 continue;
             }
@@ -455,7 +470,14 @@ class GifPlayer {
                 }
                 const lzwMin = data[pos++];
                 const raw = [];
-                while (true) { const sz = data[pos++]; if (sz === 0) break; for (let i = 0; i < sz; i++) raw.push(data[pos++]); }
+                let truncated = false;
+                while (pos < data.length) {
+                    const sz = data[pos++];
+                    if (sz === 0) break;
+                    if (pos + sz > data.length) { truncated = true; break; }
+                    for (let i = 0; i < sz; i++) raw.push(data[pos++]);
+                }
+                if (truncated) break;
                 if (!ct) { delay = 100; transIdx = -1; disposal = 0; continue; }
 
                 const indices = GifPlayer.lzw(lzwMin, raw);
@@ -511,7 +533,8 @@ class GifPlayer {
             bits >>= cs; nb -= cs;
             if (code === eoi) break;
             if (code === clear) { init(); continue; }
-            const entry = code < next ? tbl[code] : (prev >= 0 ? [...tbl[prev], tbl[prev][0]] : []);
+            const entry = code < next ? tbl[code] : (prev >= 0 ? [...tbl[prev], tbl[prev][0]] : null);
+            if (!entry || entry.length === 0) break; // malformed stream — bail out
             for (const v of entry) out.push(v);
             if (prev >= 0 && next < 4096) {
                 tbl[next++] = [...tbl[prev], entry[0]];
@@ -612,6 +635,8 @@ class AiBuddyPlugin extends Plugin {
     }
 
     onunload() {
+        clearTimeout(this._pendingRemoveTimer);
+        this._pendingRemoveTimer = null;
         this.removeBuddy();
         document.body.classList.remove('ai-buddy-settings-open');
     }
@@ -716,13 +741,12 @@ class AiBuddyPlugin extends Plugin {
         // Position — ResizeObserver fires synchronously on every pixel change,
         // giving lag-free anchoring when sidebars open/close or window resizes.
         this.updateBuddyPosition();
-        const ro = new ResizeObserver(() => this.updateBuddyPosition());
-        ro.observe(this.app.workspace.containerEl);
+        this._resizeObserver = new ResizeObserver(() => this.updateBuddyPosition());
+        this._resizeObserver.observe(this.app.workspace.containerEl);
         const rightSplit = this.app.workspace.rightSplit;
         const leftSplit  = this.app.workspace.leftSplit;
-        if (rightSplit?.containerEl) ro.observe(rightSplit.containerEl);
-        if (leftSplit?.containerEl)  ro.observe(leftSplit.containerEl);
-        this.register(() => ro.disconnect());
+        if (rightSplit?.containerEl) this._resizeObserver.observe(rightSplit.containerEl);
+        if (leftSplit?.containerEl)  this._resizeObserver.observe(leftSplit.containerEl);
 
         // Preload emotion GIFs so avatar swaps during emotions are instant
         this._preloadEmotionAvatars();
@@ -738,7 +762,6 @@ class AiBuddyPlugin extends Plugin {
             this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
         });
         this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        this.register(() => this._themeObserver?.disconnect());
 
         // Trigger emerge emotion (plays animation + shows greeting bubble)
         this.triggerEmotion('emerge', { duration: 5000, animationMs: 2400, force: true });
@@ -752,6 +775,8 @@ class AiBuddyPlugin extends Plugin {
     // and rewrite known-bad Tenor paths to the hotlinkable variant.
     async _resolveShareUrl(url) {
         this._shareUrlCache = this._shareUrlCache || new Map();
+        // Simple LRU cap so a long session of pasted share URLs doesn't grow
+        // the cache without bound.
         if (this._shareUrlCache.has(url)) return this._shareUrlCache.get(url);
         try {
             const resp = await requestUrl({ url, method: 'GET' });
@@ -764,7 +789,13 @@ class AiBuddyPlugin extends Plugin {
             // 404s for hotlinking; the hotlinkable variant lives at
             // media.tenor.com/<hash>/<name>.gif (no "/m/" path segment).
             resolved = resolved.replace(/:\/\/media1?\.tenor\.com\/m\//i, '://media.tenor.com/');
+            // Only trust http(s) results — reject javascript:, data:, file:, etc.
+            if (!/^https?:\/\//i.test(resolved)) resolved = url;
             this._shareUrlCache.set(url, resolved);
+            if (this._shareUrlCache.size > 50) {
+                const firstKey = this._shareUrlCache.keys().next().value;
+                this._shareUrlCache.delete(firstKey);
+            }
             return resolved;
         } catch (e) {
             console.warn('AI Buddy: share-URL resolution failed for', url, e);
@@ -898,7 +929,7 @@ class AiBuddyPlugin extends Plugin {
             try {
                 const data = await this._fetchGifData(path, path);
                 const frames = GifPlayer.parse(data);
-                GIF_FRAME_CACHE.set(path, frames);
+                cacheGifFrames(path, frames);
             } catch (e) {
                 console.warn(`AI Buddy: preload failed for ${path}`, e);
             }
@@ -938,6 +969,16 @@ class AiBuddyPlugin extends Plugin {
         this.clearQuoteWatcher();
         this.stopTrackingQuote();
         this.removeArrowIndicator();
+        // Tear down per-buddy observers/listeners so show/hide cycles don't leak
+        this._resizeObserver?.disconnect();
+        this._resizeObserver = null;
+        this._themeObserver?.disconnect();
+        this._themeObserver = null;
+        if (this._dragListeners) {
+            document.removeEventListener('mousemove', this._dragListeners.onMouseMove);
+            document.removeEventListener('mouseup',   this._dragListeners.onMouseUp);
+            this._dragListeners = null;
+        }
         this.buddyEl?.remove();
         this.buddyEl = null;
         this.chatEl = null;
@@ -952,6 +993,17 @@ class AiBuddyPlugin extends Plugin {
     }
 
     showBuddy() {
+        // If a disappear animation is mid-flight, cancel the pending removal
+        // so toggling on inside the 1s window is a true no-op instead of
+        // leaving the user with showBuddy=true but no buddy on screen.
+        if (this._pendingRemoveTimer) {
+            clearTimeout(this._pendingRemoveTimer);
+            this._pendingRemoveTimer = null;
+            this.buddyEl?.removeClass('emotion-disappear');
+            this.settings.showBuddy = true;
+            this.saveSettings();
+            return;
+        }
         if (this.buddyEl) return;
         this.settings.showBuddy = true;
         this.saveSettings();
@@ -964,7 +1016,11 @@ class AiBuddyPlugin extends Plugin {
         this.saveSettings();
         // Play disappear animation first, then remove
         this.triggerEmotion('disappear', { duration: 1800, animationMs: 1000 });
-        setTimeout(() => this.removeBuddy(), 1000);
+        clearTimeout(this._pendingRemoveTimer);
+        this._pendingRemoveTimer = setTimeout(() => {
+            this._pendingRemoveTimer = null;
+            this.removeBuddy();
+        }, 1000);
     }
 
     applyDirectionClass() {
@@ -1357,10 +1413,9 @@ class AiBuddyPlugin extends Plugin {
         handle.addEventListener('mousedown', onMouseDown);
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
-        this.register(() => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        });
+        // Track for teardown in removeBuddy so multiple show/hide cycles
+        // don't accumulate document listeners.
+        this._dragListeners = { onMouseMove, onMouseUp };
 
         return () => dragMoved;
     }
@@ -2085,7 +2140,11 @@ class AiBuddyPlugin extends Plugin {
 
     async loadSettings() {
         const saved = await this.loadData() || {};
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        // Deep clone defaults so nested objects (emotionAvatars, emotionMessages)
+        // aren't shared refs — otherwise user mutations leak into DEFAULT_SETTINGS
+        // and "Reset to defaults" resurrects stale values.
+        const defaults = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        this.settings = Object.assign(defaults, saved);
         if (!this.settings.emotionAvatars) this.settings.emotionAvatars = {};
 
         // Migrate: legacy single `avatarPath` → emotionAvatars.default
@@ -2126,13 +2185,16 @@ class AiBuddyPlugin extends Plugin {
     }
 
     saveApiKey(key) {
+        // Update in-memory immediately so the chat can use the current value,
+        // but debounce the actual secretStorage write — on macOS/Windows the
+        // OS keychain call is slow enough to stutter on every keystroke.
         this._apiKey = key;
-        if (key) {
-            this.app.secretStorage.setSecret(SECRET_KEY, key);
-        } else {
-            // Clear by setting empty — no removeSecret in the API
-            this.app.secretStorage.setSecret(SECRET_KEY, '');
-        }
+        clearTimeout(this._apiKeySaveTimer);
+        this._apiKeySaveTimer = setTimeout(() => {
+            this._apiKeySaveTimer = null;
+            // secretStorage has no removeSecret; setting '' clears the value.
+            this.app.secretStorage.setSecret(SECRET_KEY, key || '');
+        }, 400);
     }
 }
 
@@ -2450,7 +2512,7 @@ class AiBuddySettingTab extends PluginSettingTab {
         // Base URL — only shown for OpenAI-compatible so users can point at
         // Groq, Together, OpenRouter, LM Studio, Ollama, etc.
         if (this.plugin.settings.apiProvider !== 'claude') {
-            new Setting(containerEl)
+            const baseUrlSetting = new Setting(containerEl)
                 .setName('Base URL')
                 .setDesc('OpenAI-compatible API endpoint. Examples: https://api.openai.com/v1, https://api.groq.com/openai/v1, https://openrouter.ai/api/v1, http://localhost:1234/v1 (LM Studio), http://localhost:11434/v1 (Ollama).')
                 .addText(t => t
@@ -2459,7 +2521,21 @@ class AiBuddySettingTab extends PluginSettingTab {
                     .onChange(async v => {
                         this.plugin.settings.openaiBaseUrl = v.trim() || 'https://api.openai.com/v1';
                         await this.plugin.saveSettings();
+                        this.display();   // refresh warning banner
                     }));
+            // Warn if the user has pointed at a non-https, non-localhost URL —
+            // the API key is sent as a Bearer token to whatever host they enter.
+            const baseUrl = (this.plugin.settings.openaiBaseUrl || '').trim();
+            const isInsecure = /^http:\/\//i.test(baseUrl)
+                && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
+            if (isInsecure) {
+                const warn = baseUrlSetting.settingEl.createEl('div', {
+                    cls: 'setting-item-description',
+                    text: '⚠ Non-HTTPS endpoint — your API key will be sent unencrypted to this host.',
+                });
+                warn.style.color = 'var(--text-error)';
+                warn.style.marginTop = '4px';
+            }
         }
 
         new Setting(containerEl)
@@ -2512,8 +2588,24 @@ class AiBuddySettingTab extends PluginSettingTab {
                 .setButtonText('Reset')
                 .setWarning()
                 .onClick(async () => {
-                    this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
+                    // Deep clone so nested objects aren't shared with DEFAULT_SETTINGS
+                    this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
                     await this.plugin.saveSettings();
+                    // Re-apply everything so the user sees the reset immediately
+                    // instead of having to reload Obsidian.
+                    if (this.plugin.buddyEl) {
+                        this.plugin.applyDirectionClass();
+                        this.plugin.applyTheme();
+                        this.plugin.updateBuddyPosition();
+                        this.plugin._renderAvatar(
+                            this.plugin.settings.emotionAvatars?.idle
+                            || this.plugin.settings.emotionAvatars?.default
+                            || ''
+                        );
+                        clearTimeout(this.plugin.tipTimer);
+                        if (this.plugin.settings.proactiveTips) this.plugin.startTipTimer();
+                        this.plugin.startIdleWatcher();
+                    }
                     this.display();
                 }));
     }

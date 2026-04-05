@@ -537,6 +537,7 @@ class AiBuddyPlugin extends Plugin {
 
     onunload() {
         this.removeBuddy();
+        document.body.classList.remove('ai-buddy-settings-open');
     }
 
     // ─── Buddy Lifecycle ───────────────────────────────────────────────────────
@@ -1930,10 +1931,17 @@ class AiBuddySettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
+    hide() {
+        document.body.classList.remove('ai-buddy-settings-open');
+    }
+
     display() {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('ai-buddy-settings');
+        // Flag the body so CSS can keep the buddy visible + on top while we're
+        // looking at his settings (so users can see him react while tweaking).
+        document.body.classList.add('ai-buddy-settings-open');
 
         containerEl.createEl('h2', { text: '✦ AI Buddy' });
         containerEl.createEl('p', {

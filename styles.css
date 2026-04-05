@@ -22,12 +22,18 @@
   transition: opacity 0.15s ease;
 }
 
-/* Hide the buddy while any Obsidian modal is open (settings, search, etc.)
-   UNLESS the user just clicked Preview from settings — then lift it above
-   the modal so they can actually see the emotion play */
+/* Hide the buddy while any Obsidian modal is open (settings, search, etc.),
+   EXCEPT when: (a) the user clicked Preview from settings, or (b) the
+   settings modal is currently on the AI Buddy tab — in both cases we keep
+   the buddy visible and lifted above the modal. */
 body:has(.modal-container) .ai-buddy-root:not(.is-previewing) {
   opacity: 0;
   pointer-events: none !important;
+}
+body.ai-buddy-settings-open .ai-buddy-root {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 10000;
 }
 .ai-buddy-root.is-previewing {
   z-index: 10000 !important;

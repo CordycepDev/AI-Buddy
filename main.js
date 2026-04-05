@@ -703,6 +703,13 @@ class AiBuddyPlugin extends Plugin {
             || /^https?:\/\/(www\.)?giphy\.com\/gifs\//i.test(url);
     }
 
+    // Always rewrite known-broken CDN paths (Tenor's media1.tenor.com/m/<hash>
+    // format 404s for hotlinking; the hotlinkable variant drops the "/m/").
+    _sanitizeAvatarPath(path) {
+        if (!path) return path;
+        return path.replace(/:\/\/media1?\.tenor\.com\/m\//i, '://media.tenor.com/');
+    }
+
     // Swap Clippy paths to their _dark variant when in dark mode (the Clippy
     // preset ships two variants per emotion: white-bg and black-bg).
     _resolveThemedPath(path) {
@@ -719,7 +726,7 @@ class AiBuddyPlugin extends Plugin {
     // `isEmotion=true` forces a minimum playback speed so emotion GIFs animate
     // even when the user has paused the default/idle GIF via gifSpeed.
     _renderAvatar(rawPath, isEmotion = false) {
-        const path = this._resolveThemedPath(rawPath);
+        const path = this._sanitizeAvatarPath(this._resolveThemedPath(rawPath));
         const wrapper = this.avatarWrapperEl;
         if (!wrapper) return;
 
@@ -764,11 +771,11 @@ class AiBuddyPlugin extends Plugin {
         const src   = isUrl ? path : this.app.vault.adapter.getResourcePath(path);
         const isGif = /\.gif(\?.*)?$/i.test(path);
 
-        // Use the canvas-based GIF player ONLY for vault-local .gif files,
-        // where we can read bytes directly and get speed control. URLs fall
-        // through to <img>, which lets the browser follow redirects (Tenor,
-        // Giphy, etc.) and render any animated format natively.
-        if (isGif && !isUrl) {
+        // Use the canvas-based GIF player for all .gif files so the GIF
+        // playback-speed slider works on both vault-local files and direct
+        // URL GIFs. Share URLs (Tenor/Giphy viewer pages) are resolved to
+        // direct media URLs earlier in this function.
+        if (isGif) {
             const canvas = wrapper.createEl('canvas');
             canvas.style.cssText = 'width:64px;height:64px;border-radius:50%;';
             // Emotion GIFs always play (≥ 1×) so pausing the idle avatar

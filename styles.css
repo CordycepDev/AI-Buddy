@@ -39,27 +39,29 @@ body.ai-buddy-settings-open .ai-buddy-root {
   z-index: 10000 !important;
 }
 
-/* Clippy lives on paper — blend him into the workspace, no card frame.
-   Light mode: multiply (white bg × workspace = workspace, darks stay dark)
-   Dark mode: lighten (black bg → workspace, lights stay light) */
+/* Clippy lives on paper — no glow. The GIF's own bg IS the card:
+   light mode uses white-bg GIFs, dark mode uses black-bg GIFs (JS swaps
+   at render time). A thin border + drop shadow frame whatever loaded. */
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover {
   filter: none !important;
-  isolation: auto;
 }
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  border-radius: 0 !important;
+  border-radius: 6px !important;
   width: 72px !important;
   height: 72px !important;
   object-fit: contain;
-  box-shadow: none !important;
   image-rendering: auto;
-  mix-blend-mode: multiply;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.22);
 }
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  mix-blend-mode: lighten;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 .ai-buddy-avatar-section,

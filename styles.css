@@ -695,62 +695,59 @@ body.ai-buddy-settings-open .ai-buddy-root {
   font-size: 12px;
 }
 
-/* Full-width prompt textareas (System prompt, Tip instruction) */
+/* Full-width prompt textareas (System prompt, Tip instruction) — stack
+   info on top of control but keep Obsidian's native padding/flex so the
+   standard horizontal buffer from .vertical-tab-content is preserved. */
 .ai-buddy-prompt-row {
-  display: block !important;
-  padding: 12px 0;
-  border-top: 1px solid var(--background-modifier-border);
+  flex-direction: column !important;
+  align-items: stretch !important;
 }
 .ai-buddy-prompt-row .setting-item-info {
   margin: 0 0 8px 0;
-  width: 100%;
 }
 .ai-buddy-prompt-row .setting-item-control {
-  display: block !important;
-  width: 100%;
-  padding-left: 0;
+  padding-left: 0 !important;
+  justify-content: stretch;
 }
 .ai-buddy-prompt-field {
-  width: 100% !important;
+  width: 100%;
+  box-sizing: border-box;
   font-family: var(--font-monospace);
   font-size: 12px;
   line-height: 1.45;
-  box-sizing: border-box;
   resize: vertical;
   min-height: 80px;
 }
 
-/* Compact emotion config rows: one line per emotion (name + msg + avatar + preview) */
+/* Emotion config rows — same stacked layout so the inputs get room */
 .ai-buddy-emotion-row {
-  padding: 6px 0;
-  border-top: none;
-  flex-wrap: wrap;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 10px 0 !important;
 }
 .ai-buddy-emotion-row .setting-item-info {
-  flex: 0 0 auto;
-  margin-right: 8px;
-  min-width: 80px;
+  margin: 0 0 6px 0;
 }
 .ai-buddy-emotion-row .setting-item-name {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
 }
 .ai-buddy-emotion-row .setting-item-description { display: none; }
 .ai-buddy-emotion-row .setting-item-control {
-  flex: 1 1 auto;
-  gap: 4px;
+  padding-left: 0 !important;
+  gap: 6px;
   flex-wrap: nowrap;
 }
 .ai-buddy-emotion-msg-input {
   flex: 2 1 0;
-  min-width: 120px;
-  font-size: 11px;
+  min-width: 0;
+  font-size: 12px;
   font-family: var(--font-monospace);
 }
 .ai-buddy-emotion-avatar-input {
   flex: 1 1 0;
-  min-width: 80px;
-  font-size: 11px;
+  min-width: 0;
+  font-size: 12px;
   font-family: var(--font-monospace);
 }
 .ai-buddy-emotion-row button {

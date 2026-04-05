@@ -45,13 +45,24 @@ body:has(.modal-container) .ai-buddy-root {
     0 2px 6px rgba(0, 0, 0, 0.18);
   image-rendering: auto;
 }
-/* Dark mode: dim the whole card so its white edges don't blast against dark bg */
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  filter: brightness(0.42) contrast(1.08);
+/* Dark mode: replace Clippy's white background with dark grey via blend mode.
+   The wrapper provides a dark backdrop; mix-blend-mode: darken keeps pixels
+   that are darker than the backdrop (i.e. Clippy himself) and replaces
+   anything lighter (the white paper/sheet) with the dark grey backdrop. */
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper {
+  background: #3a3a3a;
+  border-radius: 6px;
+  width: 72px;
+  height: 72px;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08),
     0 2px 6px rgba(0, 0, 0, 0.55);
+}
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
+  background: transparent !important;
+  mix-blend-mode: darken;
+  box-shadow: none !important;
 }
 /* Hover: lift the card slightly, don't glow */
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
@@ -60,11 +71,14 @@ body:has(.modal-container) .ai-buddy-root {
     0 0 0 1px rgba(0, 0, 0, 0.18),
     0 4px 12px rgba(0, 0, 0, 0.25);
 }
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.14),
     0 4px 12px rgba(0, 0, 0, 0.7);
+}
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
+  box-shadow: none !important;
 }
 
 .ai-buddy-avatar-section,

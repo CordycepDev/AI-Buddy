@@ -723,7 +723,10 @@ body.ai-buddy-settings-open .ai-buddy-root {
 .ai-buddy-emotion-row {
   flex-direction: column !important;
   align-items: stretch !important;
-  padding: 10px 0 !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  /* horizontal padding inherits from .setting-item default so the
+     standard container buffer is preserved */
 }
 .ai-buddy-emotion-row .setting-item-info {
   margin: 0 0 6px 0;

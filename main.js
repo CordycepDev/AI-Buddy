@@ -671,6 +671,38 @@ class AiBuddyPlugin extends Plugin {
         this.startIdleWatcher();
     }
 
+    // Tenor/Giphy share URLs point to HTML viewer pages, not raw image data.
+    // Fetch the page once, extract the direct media URL from og:image meta tag,
+    // and rewrite known-bad Tenor paths to the hotlinkable variant.
+    async _resolveShareUrl(url) {
+        this._shareUrlCache = this._shareUrlCache || new Map();
+        if (this._shareUrlCache.has(url)) return this._shareUrlCache.get(url);
+        try {
+            const resp = await requestUrl({ url, method: 'GET' });
+            const html = resp.text || '';
+            // Match og:image meta tag (attribute order can vary)
+            const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+                       || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+            let resolved = match ? match[1] : url;
+            // Tenor's og:image returns media1.tenor.com/m/<hash>/<name>.gif which
+            // 404s for hotlinking; the hotlinkable variant lives at
+            // media.tenor.com/<hash>/<name>.gif (no "/m/" path segment).
+            resolved = resolved.replace(/:\/\/media1?\.tenor\.com\/m\//i, '://media.tenor.com/');
+            this._shareUrlCache.set(url, resolved);
+            return resolved;
+        } catch (e) {
+            console.warn('AI Buddy: share-URL resolution failed for', url, e);
+            return url;
+        }
+    }
+
+    // True when the URL is a known share-service page that needs resolution
+    _isShareUrl(url) {
+        return /^https?:\/\/(www\.)?tenor\.com\/[^\/]+\.gif(\?.*)?$/i.test(url)
+            || /^https?:\/\/(www\.)?tenor\.com\/view\//i.test(url)
+            || /^https?:\/\/(www\.)?giphy\.com\/gifs\//i.test(url);
+    }
+
     // Swap Clippy paths to their _dark variant when in dark mode (the Clippy
     // preset ships two variants per emotion: white-bg and black-bg).
     _resolveThemedPath(path) {
@@ -702,6 +734,20 @@ class AiBuddyPlugin extends Plugin {
             return;
         }
 
+        // Tenor/Giphy share URLs — resolve to direct media URL, then re-render
+        if (this._isShareUrl(path)) {
+            this._resolveShareUrl(path).then(resolved => {
+                // Bail if another render has replaced this one
+                if (this._currentAvatarPath !== path) return;
+                if (resolved && resolved !== path) {
+                    this._renderAvatar(resolved, isEmotion);
+                } else {
+                    wrapper.innerHTML = BUDDY_SVG;
+                }
+            });
+            return;
+        }
+
         // Inline built-in SVG variants (e.g. "builtin:chip/happy")
         if (path.startsWith('builtin:')) {
             const key = path.slice('builtin:'.length);
@@ -718,7 +764,11 @@ class AiBuddyPlugin extends Plugin {
         const src   = isUrl ? path : this.app.vault.adapter.getResourcePath(path);
         const isGif = /\.gif(\?.*)?$/i.test(path);
 
-        if (isGif) {
+        // Use the canvas-based GIF player ONLY for vault-local .gif files,
+        // where we can read bytes directly and get speed control. URLs fall
+        // through to <img>, which lets the browser follow redirects (Tenor,
+        // Giphy, etc.) and render any animated format natively.
+        if (isGif && !isUrl) {
             const canvas = wrapper.createEl('canvas');
             canvas.style.cssText = 'width:64px;height:64px;border-radius:50%;';
             // Emotion GIFs always play (≥ 1×) so pausing the idle avatar

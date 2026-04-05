@@ -1004,14 +1004,14 @@ class AiBuddyPlugin extends Plugin {
         const emotionPath     = emotionAvatars[key] || '';
         const defaultPath     = emotionAvatars.default || '';
         const hasEmotionAsset = !!emotionPath && emotionPath !== defaultPath;
-        // Only GIFs animate themselves; static images (SVG/PNG/JPG) need CSS motion
-        const isSelfAnimating = hasEmotionAsset && /\.gif(\?.*)?$/i.test(emotionPath);
 
         // Reset animation class (force reflow so same-key retrigger works)
         for (const k of Object.keys(DEFAULT_EMOTIONS)) this.buddyEl.removeClass(`emotion-${k}`);
         void this.buddyEl.offsetWidth;
-        // Apply CSS keyframe animation unless the asset self-animates (GIF)
-        if (!isSelfAnimating) this.buddyEl.addClass(`emotion-${key}`);
+        // Only apply the CSS keyframe (shrink/bounce/shake/etc.) when the user
+        // has NOT set a custom emotion asset. Custom assets play as-is —
+        // users who supply their own art don't want it squeezed/shaken.
+        if (!hasEmotionAsset) this.buddyEl.addClass(`emotion-${key}`);
 
         // Swap avatar to emotion-specific art if provided
         if (hasEmotionAsset) this._renderAvatar(emotionPath, true);

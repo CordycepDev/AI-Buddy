@@ -2015,9 +2015,9 @@ class AiBuddySettingTab extends PluginSettingTab {
         // Default avatar path — per-emotion avatars live in the Personality section
         new Setting(containerEl)
             .setName('Default avatar')
-            .setDesc('Shown when no emotion is active. Vault path (e.g. attachments/pip.gif), https URL, or leave empty for built-in Chip.')
+            .setDesc('Shown when no emotion is active. Accepts a vault path (e.g. attachments/pip.gif), an https URL to a .gif / .png / .jpg / .webp, a "builtin:" ref, or leave empty for built-in Chip.')
             .addText(t => t
-                .setPlaceholder('attachments/pip.gif or https://...')
+                .setPlaceholder('path / URL / builtin:chip/idle')
                 .setValue(this.plugin.settings.emotionAvatars?.default || '')
                 .onChange(async v => {
                     this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
@@ -2146,7 +2146,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         const emotionDesc = containerEl.createEl('p', {
             cls: 'setting-item-description',
-            text: `Messages: separate alternates with a pipe ( | ), use {name} for the buddy's name. Avatars: leave empty to reuse default. ▶ to preview.`,
+            text: `Messages: separate alternates with a pipe ( | ), use {name} for the buddy's name. Avatars accept a vault path (attachments/foo.gif), an https URL (.gif/.png/.jpg/.webp), or a "builtin:" ref. Leave empty to reuse default. ▶ to preview.`,
         });
         emotionDesc.style.marginBottom = '6px';
 
@@ -2165,7 +2165,7 @@ class AiBuddySettingTab extends PluginSettingTab {
             });
             row.addText(t => {
                 t.inputEl.addClass('ai-buddy-emotion-avatar-input');
-                t.setPlaceholder('avatar path')
+                t.setPlaceholder('vault path / URL / builtin:')
                     .setValue(this.plugin.settings.emotionAvatars?.[key] || '')
                     .onChange(async v => {
                         this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};

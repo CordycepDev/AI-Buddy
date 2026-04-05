@@ -98,6 +98,10 @@ body.ai-buddy-settings-open .ai-buddy-root {
   cursor: grab;
 }
 
+.ai-buddy-root.no-bounce .ai-buddy-avatar-wrapper {
+  animation: none;
+}
+
 .ai-buddy-avatar-wrapper:hover {
   transform: scale(1.08);
   animation-play-state: paused;

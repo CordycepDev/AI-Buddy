@@ -9,6 +9,7 @@ const SECRET_KEY = 'ai-buddy-api-key';
 const DEFAULT_SETTINGS = {
     apiProvider: 'claude',
     model: 'claude-haiku-4-5-20251001',
+    openaiBaseUrl: 'https://api.openai.com/v1',   // OpenAI-compatible endpoints (Groq, Together, OpenRouter, LM Studio, etc.)
     buddyName: 'Chip',
     showBuddy: true,
     systemPrompt: `You are Chip, a friendly AI assistant living inside the user's Obsidian vault. You help with note-taking, writing, brainstorming, and thinking through ideas. Be warm, concise, and genuinely helpful. When given context about the current note, reference it naturally.`,
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS = {
     theme: 'purple',                 // color palette (see THEMES below)
     visualStyle: 'glow',             // overall aesthetic (see VISUAL_STYLES below)
     customFont: '',                  // font-family override for the buddy UI (empty = inherit)
+    passiveBounce: true,             // continuous bob animation when idle
     emotionsEnabled: true,           // master toggle for personality/emotion reactions
     emotionMessages: {},             // {emotionKey: "msg1|msg2|msg3"} user overrides; falls back to DEFAULT_EMOTIONS
 };
@@ -577,7 +579,7 @@ class AiBuddyPlugin extends Plugin {
         // Avatar wrapper
         const avatarWrapper = avatarSection.createEl('div', { cls: 'ai-buddy-avatar-wrapper' });
         this.avatarWrapperEl = avatarWrapper;
-        this._renderAvatar(this.settings.emotionAvatars?.default || '');
+        this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
 
         // Name tag (conditionally shown)
         this.nameTagEl = avatarSection.createEl('div', {
@@ -659,7 +661,7 @@ class AiBuddyPlugin extends Plugin {
             if (isDark === lastThemeDark || !this.buddyEl) return;
             lastThemeDark = isDark;
             // Re-render the current avatar (default) with the new theme variant
-            this._renderAvatar(this.settings.emotionAvatars?.default || '');
+            this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
         });
         this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         this.register(() => this._themeObserver?.disconnect());
@@ -979,6 +981,9 @@ class AiBuddyPlugin extends Plugin {
         for (const key of Object.keys(AVATAR_PRESETS)) this.buddyEl.removeClass(`preset-${key}`);
         const presetKey = AVATAR_PRESETS[this.settings.avatarPreset] ? this.settings.avatarPreset : 'custom';
         this.buddyEl.addClass(`preset-${presetKey}`);
+
+        // Passive bounce toggle
+        this.buddyEl.toggleClass('no-bounce', this.settings.passiveBounce === false);
     }
 
     // ─── Emotions ──────────────────────────────────────────────────────────────
@@ -1009,7 +1014,7 @@ class AiBuddyPlugin extends Plugin {
         // Check for a custom avatar for this emotion
         const emotionAvatars  = this.settings.emotionAvatars || {};
         const emotionPath     = emotionAvatars[key] || '';
-        const defaultPath     = emotionAvatars.default || '';
+        const defaultPath     = emotionAvatars.idle || emotionAvatars.default || '';
         const hasEmotionAsset = !!emotionPath && emotionPath !== defaultPath;
 
         // Reset animation class (force reflow so same-key retrigger works)
@@ -1813,8 +1818,9 @@ class AiBuddyPlugin extends Plugin {
     }
 
     async callOpenAI(system, messages) {
+        const base = (this.settings.openaiBaseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
         const resp = await requestUrl({
-            url: 'https://api.openai.com/v1/chat/completions',
+            url: `${base}/chat/completions`,
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this._apiKey}`,
@@ -2055,7 +2061,7 @@ class AiBuddySettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                         if (this.plugin.buddyEl) {
                             this.plugin.applyTheme();   // updates preset-X class
-                            this.plugin._renderAvatar(this.plugin.settings.emotionAvatars.default || '');
+                            this.plugin._renderAvatar(this.plugin.settings.emotionAvatars?.idle || this.plugin.settings.emotionAvatars?.default || '');
                         }
                         this.display();   // refresh to show new paths
                     });
@@ -2069,21 +2075,6 @@ class AiBuddySettingTab extends PluginSettingTab {
             }).style.marginBottom = '8px';
         }
 
-        // Default avatar path — per-emotion avatars live in the Personality section
-        new Setting(containerEl)
-            .setName('Default avatar')
-            .setDesc('Shown when no emotion is active. Accepts a vault path (e.g. attachments/pip.gif), an https URL to a .gif / .png / .jpg / .webp, a "builtin:" ref, or leave empty for built-in Chip.')
-            .addText(t => t
-                .setPlaceholder('path / URL / builtin:chip/idle')
-                .setValue(this.plugin.settings.emotionAvatars?.default || '')
-                .onChange(async v => {
-                    this.plugin.settings.emotionAvatars = this.plugin.settings.emotionAvatars || {};
-                    this.plugin.settings.emotionAvatars.default = v.trim();
-                    this.plugin.settings.avatarPreset = 'custom';
-                    await this.plugin.saveSettings();
-                    if (this.plugin.buddyEl) this.plugin._renderAvatar(v.trim());
-                }));
-
         new Setting(containerEl)
             .setName('GIF playback speed')
             .setDesc('Speed for the default/idle avatar. 0 = paused, 1× = original, 2× = double. Emotion GIFs (angry, happy, etc.) always play at 1× or faster.')
@@ -2095,6 +2086,17 @@ class AiBuddySettingTab extends PluginSettingTab {
                     this.plugin.settings.gifSpeed = v;
                     await this.plugin.saveSettings();
                     this.plugin._gifPlayer?.setSpeed(v);
+                }));
+
+        new Setting(containerEl)
+            .setName('Passive bounce')
+            .setDesc(`Subtle continuous bob animation while ${this.plugin.settings.buddyName} is just hanging out.`)
+            .addToggle(t => t
+                .setValue(this.plugin.settings.passiveBounce ?? true)
+                .onChange(async v => {
+                    this.plugin.settings.passiveBounce = v;
+                    await this.plugin.saveSettings();
+                    this.plugin.applyTheme();
                 }));
 
         new Setting(containerEl)
@@ -2243,7 +2245,7 @@ class AiBuddySettingTab extends PluginSettingTab {
             .setName('Provider')
             .addDropdown(d => d
                 .addOption('claude', 'Anthropic Claude')
-                .addOption('openai', 'OpenAI')
+                .addOption('openai', 'OpenAI-compatible')
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async v => {
                     this.plugin.settings.apiProvider = v;
@@ -2251,6 +2253,21 @@ class AiBuddySettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                     this.display();
                 }));
+
+        // Base URL — only shown for OpenAI-compatible so users can point at
+        // Groq, Together, OpenRouter, LM Studio, Ollama, etc.
+        if (this.plugin.settings.apiProvider !== 'claude') {
+            new Setting(containerEl)
+                .setName('Base URL')
+                .setDesc('OpenAI-compatible API endpoint. Examples: https://api.openai.com/v1, https://api.groq.com/openai/v1, https://openrouter.ai/api/v1, http://localhost:1234/v1 (LM Studio), http://localhost:11434/v1 (Ollama).')
+                .addText(t => t
+                    .setPlaceholder('https://api.openai.com/v1')
+                    .setValue(this.plugin.settings.openaiBaseUrl || 'https://api.openai.com/v1')
+                    .onChange(async v => {
+                        this.plugin.settings.openaiBaseUrl = v.trim() || 'https://api.openai.com/v1';
+                        await this.plugin.saveSettings();
+                    }));
+        }
 
         new Setting(containerEl)
             .setName('API key')
@@ -2266,7 +2283,7 @@ class AiBuddySettingTab extends PluginSettingTab {
             .setName('Model')
             .setDesc(this.plugin.settings.apiProvider === 'claude'
                 ? 'e.g. claude-haiku-4-5-20251001, claude-sonnet-4-6'
-                : 'e.g. gpt-4o-mini, gpt-4o')
+                : 'The model name as accepted by your endpoint (e.g. gpt-4o-mini, llama-3.3-70b-versatile, qwen2.5-coder:latest)')
             .addText(t => t
                 .setValue(this.plugin.settings.model)
                 .onChange(async v => { this.plugin.settings.model = v; await this.plugin.saveSettings(); }));

@@ -45,12 +45,26 @@ body:has(.modal-container) .ai-buddy-root {
     0 2px 6px rgba(0, 0, 0, 0.18);
   image-rendering: auto;
 }
+/* Dark mode: dim the whole card so its white edges don't blast against dark bg */
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
+  filter: brightness(0.42) contrast(1.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.55);
+}
 /* Hover: lift the card slightly, don't glow */
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.18),
     0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
+.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 4px 12px rgba(0, 0, 0, 0.7);
 }
 
 .ai-buddy-avatar-section,

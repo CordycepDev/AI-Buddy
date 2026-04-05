@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS = {
     chatDirection: 'above',           // 'above' | 'below'
     showNameTag: true,               // show/hide name below avatar
     avatarPath: '',                  // DEPRECATED — migrated to emotionAvatars.default
-    avatarPreset: 'custom',          // 'custom' | 'gemmy' | ... (see AVATAR_PRESETS)
+    avatarPreset: 'chip',            // 'custom' | 'chip' | 'gemmy' | ... (see AVATAR_PRESETS)
     emotionAvatars: {},              // { default, emerge, disappear, idle, lookAround, happy, angry, disappoint, excited } → paths/URLs
     gifSpeed: 1.0,                   // GIF playback speed multiplier (0–2, 0 = paused)
     savedPosition: null,             // null = default corner; {fromRight, fromBottom} when dragged
@@ -133,7 +133,7 @@ const AVATAR_PRESETS = {
         paths:   {},
     },
     chip: {
-        label:   'Chip (built-in)',
+        label:   'Chip',
         builtin: true,
         paths: {
             default:    '',                          // uses BUDDY_SVG with blink animation

@@ -2452,29 +2452,27 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         containerEl.createEl('h3', { text: 'Personality' });
 
-        new Setting(containerEl)
+        const systemPromptSetting = new Setting(containerEl)
             .setName('System prompt')
             .setDesc('Customize your buddy\'s personality. Note context is appended automatically. You can also enter a vault path to a .md file (e.g. prompts/system.md) and its contents will be used as the prompt — YAML frontmatter is stripped.')
             .addTextArea(t => {
+                t.inputEl.addClass('ai-buddy-prompt-field');
                 t.setValue(this.plugin.settings.systemPrompt)
                     .onChange(async v => { this.plugin.settings.systemPrompt = v; await this.plugin.saveSettings(); });
                 t.inputEl.rows = 6;
-                t.inputEl.style.width = '100%';
-                t.inputEl.style.fontFamily = 'var(--font-monospace)';
-                t.inputEl.style.fontSize = '12px';
             });
+        systemPromptSetting.settingEl.addClass('ai-buddy-prompt-row');
 
-        new Setting(containerEl)
+        const tipPromptSetting = new Setting(containerEl)
             .setName('Proactive tip instruction')
             .setDesc(`Tell ${this.plugin.settings.buddyName} what kind of tips to give when it pops up automatically. The note content is always included. Also accepts a vault path to a .md file (e.g. prompts/tip.md).`)
             .addTextArea(t => {
+                t.inputEl.addClass('ai-buddy-prompt-field');
                 t.setValue(this.plugin.settings.tipPrompt || DEFAULT_SETTINGS.tipPrompt)
                     .onChange(async v => { this.plugin.settings.tipPrompt = v; await this.plugin.saveSettings(); });
                 t.inputEl.rows = 3;
-                t.inputEl.style.width = '100%';
-                t.inputEl.style.fontFamily = 'var(--font-monospace)';
-                t.inputEl.style.fontSize = '12px';
             });
+        tipPromptSetting.settingEl.addClass('ai-buddy-prompt-row');
 
         new Setting(containerEl)
             .setName('Reset to defaults')

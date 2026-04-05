@@ -50,10 +50,9 @@ body:has(.modal-container) .ai-buddy-root {
   box-shadow: none !important;
   image-rendering: auto;
 }
-/* Dark mode: swap the card bg to dark grey; Clippy is transparent so only
-   the card changes color, he stays fully visible */
+/* Dark mode: light-grey card; Clippy is transparent so only the card changes */
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper {
-  background: #3a3a3a;
+  background: #BABABA;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08),
     0 2px 6px rgba(0, 0, 0, 0.55);

@@ -33,42 +33,27 @@ body:has(.modal-container) .ai-buddy-root:not(.is-previewing) {
   z-index: 10000 !important;
 }
 
-/* Clippy lives on a paper — no glow. The GIF's own bg IS the card:
-   light mode uses white-bg GIFs, dark mode uses black-bg GIFs (swapped
-   via JS at render time). Border + shadow frame whatever is loaded. */
+/* Clippy lives on paper — blend him into the workspace, no card frame.
+   Light mode: multiply (white bg × workspace = workspace, darks stay dark)
+   Dark mode: lighten (black bg → workspace, lights stay light) */
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover {
   filter: none !important;
+  isolation: auto;
 }
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  border-radius: 6px !important;
+  border-radius: 0 !important;
   width: 72px !important;
   height: 72px !important;
   object-fit: contain;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.15),
-    0 2px 6px rgba(0, 0, 0, 0.22);
+  box-shadow: none !important;
   image-rendering: auto;
+  mix-blend-mode: multiply;
 }
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.6);
-}
-/* Hover: lift the card slightly */
-.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
-.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.22),
-    0 4px 12px rgba(0, 0, 0, 0.3);
-}
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.75);
+  mix-blend-mode: lighten;
 }
 
 .ai-buddy-avatar-section,

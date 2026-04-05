@@ -28,44 +28,38 @@ body:has(.modal-container) .ai-buddy-root {
   pointer-events: none !important;
 }
 
-/* Clippy lives on a paper — no glow, render the whole sheet as a crisp card */
+/* Clippy lives on a paper — no glow, transparent GIFs so only the card bg shows */
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover {
   filter: none !important;
+  border-radius: 6px;
+  width: 72px;
+  height: 72px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.18);
 }
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
 .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
   border-radius: 6px !important;
   width: 72px !important;
   height: 72px !important;
-  background: #ffffff;
+  background: transparent !important;
   object-fit: contain;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.18);
+  box-shadow: none !important;
   image-rendering: auto;
 }
-/* Dark mode: tint Clippy's white paper with a grey backdrop via multiply.
-   White × grey = grey (matches card), Clippy's colors multiply proportionally
-   so he stays visible just slightly muted. */
+/* Dark mode: swap the card bg to dark grey; Clippy is transparent so only
+   the card changes color, he stays fully visible */
 .theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper {
-  background: #6e6e6e;
-  border-radius: 6px;
-  width: 72px;
-  height: 72px;
+  background: #3a3a3a;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08),
     0 2px 6px rgba(0, 0, 0, 0.55);
 }
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper canvas,
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper img {
-  background: transparent !important;
-  mix-blend-mode: multiply;
-  box-shadow: none !important;
-}
-/* Hover: lift the card slightly, don't glow */
-.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
-.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
+/* Hover: lift the card slightly */
+.ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.18),
     0 4px 12px rgba(0, 0, 0, 0.25);
@@ -74,10 +68,6 @@ body:has(.modal-container) .ai-buddy-root {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.14),
     0 4px 12px rgba(0, 0, 0, 0.7);
-}
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover canvas,
-.theme-dark .ai-buddy-root.preset-clippy .ai-buddy-avatar-wrapper:hover img {
-  box-shadow: none !important;
 }
 
 .ai-buddy-avatar-section,

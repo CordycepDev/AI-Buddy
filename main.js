@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
     gifSpeed: 1.0,                   // GIF playback speed multiplier (0–2, 0 = paused)
     savedPosition: null,             // null = default corner; {fromRight, fromBottom} when dragged
     theme: 'purple',                 // color palette (see THEMES below)
+    customAccentHex: '#7c6af7',      // user hex, used when theme === 'custom'
     visualStyle: 'glow',             // overall aesthetic (see VISUAL_STYLES below)
     customFont: '',                  // font-family override for the buddy UI (empty = inherit)
     passiveBounce: true,             // continuous bob animation when idle
@@ -48,7 +49,45 @@ const THEMES = {
     candy:   { label: 'Candy',            primary: '217, 70, 239',  light: '232, 121, 249', pale: '240, 171, 252', dark: '162, 28, 175'  },
     mono:    { label: 'Monochrome',       primary: '100, 116, 139', light: '148, 163, 184', pale: '203, 213, 225', dark: '51, 65, 85'    },
     gold:    { label: 'Gold',             primary: '234, 179, 8',   light: '250, 204, 21',  pale: '253, 224, 71',  dark: '161, 98, 7'    },
+    white:   { label: 'White',            primary: '220, 220, 220', light: '240, 240, 240', pale: '255, 255, 255', dark: '160, 160, 160' },
+    black:   { label: 'Black',            primary: '38, 38, 38',    light: '82, 82, 82',    pale: '140, 140, 140', dark: '0, 0, 0'       },
+    // Special-key themes — resolved at apply time
+    obsidian:{ label: 'Match Obsidian accent', dynamic: 'obsidian' },
+    custom:  { label: 'Custom (hex)',      dynamic: 'custom'   },
 };
+
+// Derive an RGB palette (primary/light/pale/dark) from a single base RGB triple.
+function derivePalette(r, g, b) {
+    const mix = (c, t, amt) => Math.round(c + (t - c) * amt);
+    const lighten = (amt) => `${mix(r, 255, amt)}, ${mix(g, 255, amt)}, ${mix(b, 255, amt)}`;
+    const darken  = (amt) => `${Math.round(r * (1 - amt))}, ${Math.round(g * (1 - amt))}, ${Math.round(b * (1 - amt))}`;
+    return { primary: `${r}, ${g}, ${b}`, light: lighten(0.25), pale: lighten(0.55), dark: darken(0.35) };
+}
+
+// Parse a hex string into [r, g, b] or return null
+function parseHex(input) {
+    if (!input) return null;
+    let h = input.trim().replace(/^#/, '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Parse any CSS color value into [r, g, b] using a temporary element
+function parseCssColor(value) {
+    if (!value) return null;
+    const probe = document.createElement('div');
+    probe.style.color = value;
+    document.body.appendChild(probe);
+    const computed = getComputedStyle(probe).color;
+    probe.remove();
+    const m = computed.match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const parts = m[1].split(',').map(s => parseInt(s.trim(), 10));
+    if (parts.length < 3 || parts.some(isNaN)) return null;
+    return [parts[0], parts[1], parts[2]];
+}
 
 // ─── Visual Styles ────────────────────────────────────────────────────────────
 // Each style is a complete design system: borders, shadows, radii, fonts and
@@ -138,6 +177,32 @@ const AVATAR_PRESETS = {
             disappoint: 'Clippy/clippy_disappoint.gif',
             excited:    'Clippy/clippy_excited.gif',
         },
+        // Classic Office-Assistant-flavoured bubble messages
+        messages: {
+            emerge:     `It looks like you're writing notes. Would you like help?|Hi! I'm {name}, your Office Assistant!|It looks like you need a friend. Click me!`,
+            disappear:  `You can bring me back from the settings anytime!|See you later!|I'll be right here if you need me…`,
+            idle:       `Need a hand with that note?|Would you like to see some writing tips?|I'm still here if you need help!|Psst… click me for a tip!`,
+            lookAround: `Hmm…|*peeks at your notes*|👀|Anything I can help with?`,
+            happy:      `Good choice!|Excellent!|Keep up the great work!|That looks good!`,
+            angry:      `Oops! Something went wrong.|Hmm, that didn't work…|Error! Try again?`,
+            disappoint: `Don't worry, we all make mistakes.|Maybe next time.|Oh dear…|Hmm.`,
+            excited:    `Ooh, a new document!|Let's get to it!|Exciting!|Time to work!`,
+        },
+        // Classic Clippy-style proactive tips (Obsidian-flavoured)
+        tips: [
+            `It looks like you're writing a letter. Would you like help?`,
+            `It looks like you're taking notes. Would you like some tips?`,
+            `Did you know you can link notes together with [[double brackets]]?`,
+            `Would you like help organizing your thoughts?`,
+            `Psst… have you tried using headings to break up this note?`,
+            `Need to find something? Try Ctrl+O to quickly open any note.`,
+            `Would you like to learn about backlinks?`,
+            `Have you tried using #tags to categorize your notes?`,
+            `It looks like you're starting a new note. Would you like a template?`,
+            `Did you know you can drag me around the workspace?`,
+            `Your note is looking long. Would you like to split it into sections?`,
+            `Have you tried the graph view? It's great for seeing connections!`,
+        ],
         credit: 'Clippy © Microsoft Corporation. GIFs extracted by Vjeux (blog.vjeux.com/2024/project/clippy-gifs.html) from the original Office 97 assistant.',
     },
 };
@@ -920,6 +985,10 @@ class AiBuddyPlugin extends Plugin {
             out[emotion] = relPath ? (preset.builtin ? relPath : `${base}${relPath}`) : '';
         }
         this.settings.emotionAvatars = out;
+        // If the preset ships its own emotion messages (Clippy, etc.), use them
+        if (preset.messages) {
+            this.settings.emotionMessages = { ...preset.messages };
+        }
         // Kick off asset download in the background (no-op if already present)
         if (preset.bundled) this.ensurePresetAssets(presetKey);
     }
@@ -963,9 +1032,31 @@ class AiBuddyPlugin extends Plugin {
         if (this.buddyEl) this._preloadEmotionAvatars();
     }
 
+    _resolveTheme() {
+        const key = this.settings.theme || 'purple';
+        const entry = THEMES[key];
+        if (!entry) return THEMES.purple;
+        // Static palette
+        if (!entry.dynamic) return entry;
+        // Custom hex: parse user input, derive palette
+        if (entry.dynamic === 'custom') {
+            const rgb = parseHex(this.settings.customAccentHex || '#7c6af7');
+            if (rgb) return derivePalette(...rgb);
+            return THEMES.purple;
+        }
+        // Match Obsidian's interactive-accent
+        if (entry.dynamic === 'obsidian') {
+            const v = getComputedStyle(document.body).getPropertyValue('--interactive-accent').trim();
+            const rgb = parseCssColor(v);
+            if (rgb) return derivePalette(...rgb);
+            return THEMES.purple;
+        }
+        return THEMES.purple;
+    }
+
     applyTheme() {
         if (!this.buddyEl) return;
-        const theme = THEMES[this.settings.theme] || THEMES.purple;
+        const theme = this._resolveTheme();
         this.buddyEl.style.setProperty('--buddy-primary',       theme.primary);
         this.buddyEl.style.setProperty('--buddy-primary-light', theme.light);
         this.buddyEl.style.setProperty('--buddy-primary-pale',  theme.pale);
@@ -1371,7 +1462,10 @@ class AiBuddyPlugin extends Plugin {
                 // fall through to hard-coded fallback
             }
         }
-        const tip = PROACTIVE_TIPS[Math.floor(Math.random() * PROACTIVE_TIPS.length)];
+        // Use the active preset's tips if it ships its own (e.g. Clippy)
+        const preset   = AVATAR_PRESETS[this.settings.avatarPreset];
+        const tipPool  = (preset?.tips?.length) ? preset.tips : PROACTIVE_TIPS;
+        const tip = tipPool[Math.floor(Math.random() * tipPool.length)];
         this.pendingTip = { tip, quote: null };
         this.showBubble(tip, 6000);
     }
@@ -2140,7 +2234,7 @@ class AiBuddySettingTab extends PluginSettingTab {
 
         const themeSetting = new Setting(containerEl)
             .setName('Accent color')
-            .setDesc('Color palette that drives each visual style. Try Sunset + Terminal for an amber CRT, Forest + Terminal for the classic Matrix look, Rose + Neon for pink cyberpunk, or any palette with Paper/Cozy for pastel variations.');
+            .setDesc('Color palette that drives each visual style. Try Sunset + Terminal for an amber CRT, Forest + Terminal for the classic Matrix look, or "Match Obsidian accent" to follow your theme.');
         themeSetting.addDropdown(d => {
             for (const [key, t] of Object.entries(THEMES)) d.addOption(key, t.label);
             d.setValue(this.plugin.settings.theme || 'purple')
@@ -2148,8 +2242,24 @@ class AiBuddySettingTab extends PluginSettingTab {
                     this.plugin.settings.theme = v;
                     await this.plugin.saveSettings();
                     this.plugin.applyTheme();
+                    this.display();   // refresh to show/hide hex input
                 });
         });
+
+        // Hex input — only shown when Custom (hex) is selected
+        if (this.plugin.settings.theme === 'custom') {
+            new Setting(containerEl)
+                .setName('Custom accent hex')
+                .setDesc('Any 6-digit hex color (with or without #). Light/pale/dark shades are derived automatically.')
+                .addText(t => t
+                    .setPlaceholder('#7c6af7')
+                    .setValue(this.plugin.settings.customAccentHex || '#7c6af7')
+                    .onChange(async v => {
+                        this.plugin.settings.customAccentHex = v.trim() || '#7c6af7';
+                        await this.plugin.saveSettings();
+                        this.plugin.applyTheme();
+                    }));
+        }
 
         new Setting(containerEl)
             .setName('Custom font')

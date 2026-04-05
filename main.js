@@ -970,6 +970,10 @@ class AiBuddyPlugin extends Plugin {
             this.showBubble(msg, opts.duration ?? 3500);
         }
 
+        // Preview mode: lift the buddy above any open Obsidian modal so the
+        // user can see the emotion play from inside the settings panel
+        if (opts.preview) this.buddyEl.addClass('is-previewing');
+
         clearTimeout(this._emotionTimer);
         if (key === 'idle') {
             this._isIdle = true;     // persistent state
@@ -979,6 +983,7 @@ class AiBuddyPlugin extends Plugin {
             const ms = opts.animationMs ?? 2500;
             this._emotionTimer = setTimeout(() => {
                 this.buddyEl?.removeClass(`emotion-${key}`);
+                this.buddyEl?.removeClass('is-previewing');
                 // Restore default avatar (or idle avatar if still idle)
                 if (hasEmotionAsset) {
                     const restorePath = this._isIdle

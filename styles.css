@@ -22,10 +22,15 @@
   transition: opacity 0.15s ease;
 }
 
-/* Hide the buddy while any Obsidian modal is open (settings, search, etc.) */
-body:has(.modal-container) .ai-buddy-root {
+/* Hide the buddy while any Obsidian modal is open (settings, search, etc.)
+   UNLESS the user just clicked Preview from settings — then lift it above
+   the modal so they can actually see the emotion play */
+body:has(.modal-container) .ai-buddy-root:not(.is-previewing) {
   opacity: 0;
   pointer-events: none !important;
+}
+.ai-buddy-root.is-previewing {
+  z-index: 10000 !important;
 }
 
 /* Clippy lives on a paper — no glow. The GIF's own bg IS the card:

@@ -596,10 +596,18 @@ class AiBuddyPlugin extends Plugin {
         }));
 
         this.app.workspace.onLayoutReady(() => {
-            // Ensure bundled preset assets are downloaded (no-op if present)
-            const preset = AVATAR_PRESETS[this.settings.avatarPreset];
-            if (preset?.bundled) this.ensurePresetAssets(this.settings.avatarPreset);
             if (this.settings.showBuddy) this.createBuddy();
+            // Ensure bundled preset assets are downloaded (no-op if present),
+            // then re-render the avatar in case createBuddy had to fall back
+            // to the built-in SVG while files were still missing.
+            const preset = AVATAR_PRESETS[this.settings.avatarPreset];
+            if (preset?.bundled) {
+                this.ensurePresetAssets(this.settings.avatarPreset).then(() => {
+                    if (this.buddyEl) {
+                        this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
+                    }
+                });
+            }
         });
     }
 
@@ -1029,13 +1037,10 @@ class AiBuddyPlugin extends Plugin {
                 console.warn(`AI Buddy: failed to fetch preset asset ${relPath}`, e);
             }
         }
-        // Warm the frame cache + re-render the default avatar in case the
-        // initial render happened before downloads completed (preset switch
-        // fires render sync while downloads are async).
-        if (this.buddyEl) {
-            this._preloadEmotionAvatars();
-            this._renderAvatar(this.settings.emotionAvatars?.idle || this.settings.emotionAvatars?.default || '');
-        }
+        // Warm the frame cache so subsequent renders are instant.
+        // Callers are responsible for calling _renderAvatar themselves after
+        // awaiting this function.
+        if (this.buddyEl) this._preloadEmotionAvatars();
     }
 
     _resolveTheme() {

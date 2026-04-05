@@ -879,7 +879,7 @@ class AiBuddyPlugin extends Plugin {
         const withVariants = [];
         for (const p of paths) {
             withVariants.push(p);
-            if (/\/Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
+            if (/(?:^|\/)Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
                 withVariants.push(p.replace(/\.gif$/i, '_dark.gif'));
             }
         }
@@ -1009,7 +1009,7 @@ class AiBuddyPlugin extends Plugin {
         for (const p of Object.values(preset.paths)) {
             if (!p) continue;
             withVariants.push(p);
-            if (/\/Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
+            if (/(?:^|\/)Clippy\/clippy_[^_/]+\.gif$/i.test(p)) {
                 withVariants.push(p.replace(/\.gif$/i, '_dark.gif'));
             }
         }
